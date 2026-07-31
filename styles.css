@@ -475,14 +475,17 @@ a.avatar.is-active { background: var(--text-base); color: #000; }
 }
 .pub__meta { font-size: 13px; color: var(--text-muted); margin: 6px 0 0; }
 .pub.is-playing .pub__title { color: var(--green); }
+/* Verde: es la acción de reproducir, que es justo para lo que DESIGN.md
+   reserva el acento. Sin él la lista se quedaba entera en grises. */
 .pub__play {
   justify-self: end;
   width: 36px; height: 36px; border-radius: 50%;
-  color: var(--text-muted);
+  color: var(--green);
   display: grid; place-items: center;
   transition: color .12s ease, transform .12s ease;
 }
-.pub__play:hover { color: var(--text-base); transform: scale(1.08); }
+.pub__play:hover { color: #1fdf64; transform: scale(1.12); }
+.pub__play:active { transform: scale(.96); }
 
 /* ── Carril horizontal (Escuchado recientemente) ──────────── */
 /* Desplazamiento lateral con anclaje, como los carruseles de la app real. */

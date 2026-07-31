@@ -198,6 +198,20 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
   await step('filas de publicación renderizadas', async () => {
     if (await page.locator('.pub').count() < SHOWS.length) throw new Error('faltan filas');
   });
+  await step('el play de cada fila va en verde', async () => {
+    /* DESIGN.md reserva el acento para reproducir, activo y CTA. En una lista
+     * de filas es el único sitio donde aparece: si se apaga, la pantalla
+     * entera se queda en grises. */
+    const { icono, verde } = await page.evaluate(() => {
+      const probe = document.createElement('span');
+      probe.style.color = 'var(--green)';
+      document.body.append(probe);
+      const verde = getComputedStyle(probe).color;
+      probe.remove();
+      return { icono: getComputedStyle(document.querySelector('.pub__play')).color, verde };
+    });
+    if (icono !== verde) throw new Error(`el play es ${icono} y el verde es ${verde}`);
+  });
   await step('los filtros dejan un solo tipo', async () => {
     await page.locator('.filter', { hasText: 'Álbumes' }).click();
     await page.waitForFunction(() =>

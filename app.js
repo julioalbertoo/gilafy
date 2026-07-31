@@ -800,7 +800,7 @@ function pubHTML(doc) {
       <p class="pub__meta">${esc(meta)}</p>
     </div>
     <button class="pub__play" data-play="${esc(doc.id)}" aria-label="Reproducir ${esc(doc.title)}">
-      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M7 4.5v15l12-7.5z"/></svg>
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M7 4.5v15l12-7.5z"/></svg>
     </button>
   </div>`;
 }
