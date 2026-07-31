@@ -154,18 +154,40 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   transition: box-shadow .2s ease;
 }
 
+.topbar__heading { min-width: 0; }
+
 .topbar__title {
   font-family: var(--font-title);
   font-size: 18px; font-weight: 700; letter-spacing: -.01em;
   margin: 0; text-align: center;
 }
 
+/* El nombre de la banda es fijo, así que va en segundo plano —pequeño y
+   apagado— para no competir con el título de la vista. */
+.topbar__group {
+  font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0; text-align: center;
+}
+
+/* Sin título de vista —publicaciones es la portada— el grupo se queda solo y
+   toma el peso de la cabecera. */
+.topbar__heading:has(#viewTitle[hidden]) .topbar__group {
+  font-family: var(--font-title);
+  font-size: 15px; font-weight: 700; letter-spacing: -.01em; text-transform: none;
+  color: var(--text-base);
+}
+
+/* En la portada tampoco hay botón atrás: sin esto su columna se quedaría
+   reservada y el nombre —que es largo— se cortaría antes de tiempo. */
+.topbar:has(#navBack[hidden]) { grid-template-columns: 0 minmax(0, 1fr) auto; }
+
 /* Cada bloque en su columna, y no por orden de aparición: en publicaciones no
-   hay título —ni botón atrás— y sin esto el grupo de la derecha se colaría en
+   hay título —ni botón atrás— y sin esto el bloque de la derecha se colaría en
    el hueco que dejan. */
-.topbar__nav   { grid-column: 1; }
-.topbar__title { grid-column: 2; }
-.topbar__right { grid-column: 3; }
+.topbar__nav     { grid-column: 1; }
+.topbar__heading { grid-column: 2; }
+.topbar__right   { grid-column: 3; }
 
 /* Adelante y el enlace a la fuente son de escritorio; atrás y el atajo a la
    biblioteca se quedan en el teléfono, que ya no tiene barra de pestañas. */
@@ -824,12 +846,17 @@ body.is-np-open { overflow: hidden; }
   .shelf__item { justify-content: center; padding: 6px; }
 
   .topbar { grid-template-columns: 88px minmax(0, 1fr) auto; padding: 12px var(--pad); gap: 16px; }
+  /* Aquí la columna no se pliega en la portada: sin el botón atrás sigue
+     estando el de adelante, que es de escritorio. */
+  .topbar:has(#navBack[hidden]) { grid-template-columns: 88px minmax(0, 1fr) auto; }
   .topbar__nav { gap: 8px; }
   .topbar__nav .icon-btn { background: rgba(0,0,0,.7); }
   .topbar__nav .icon-btn:hover { background: rgba(0,0,0,.85); }
   #navFwd, .topbar .pill { display: inline-flex; }
   #navFwd { display: grid; }
   .topbar__title { font-size: 20px; text-align: left; }
+  .topbar__group { text-align: left; }
+  .topbar__heading:has(#viewTitle[hidden]) .topbar__group { font-size: 20px; }
 
   .hero { padding: 32px var(--pad) 24px; }
   .hero__row { flex-direction: row; align-items: flex-end; gap: 24px; }

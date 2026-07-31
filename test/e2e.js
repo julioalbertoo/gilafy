@@ -114,6 +114,17 @@ const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
   'base64');
 
+/** Texto visible de la página descontando el rótulo fijo de la cabecera: ahí
+ *  el nombre del grupo va entero a propósito. La abreviatura a KGLW es para
+ *  lo que llega del archivo, no para la marca. */
+async function bodyWithoutBrand(p) {
+  return p.evaluate(() => {
+    const text = document.body.innerText;
+    const brand = document.querySelector('.topbar__group')?.innerText;
+    return brand ? text.split(brand).join('') : text;
+  });
+}
+
 /* La versión de los datos guardados se lee del código, no se fija a mano:
    así las comprobaciones de caché no se desfasan cuando sube. */
 const DATA_VERSION = Number(
@@ -208,13 +219,22 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
     const body = await page.locator('body').innerText();
     if (body.includes('Utrecht')) throw new Error('se coló un directo en la búsqueda de estudio');
   });
-  await step('la cabecera de publicaciones va desnuda', async () => {
+  await step('la cabecera de publicaciones sólo lleva el grupo', async () => {
     // Publicaciones es la portada: ni título ni botón atrás, que no llevaría
     // a ninguna parte. El resto de vistas sí se anuncian.
     if (await page.locator('#viewTitle').isVisible()) {
       throw new Error(`sigue el título «${await page.locator('#viewTitle').textContent()}»`);
     }
     if (await page.locator('#navBack').isVisible()) throw new Error('sigue el botón atrás');
+  });
+  await step('el nombre del grupo va en la cabecera, a la altura de la lupa', async () => {
+    const brand = page.locator('.topbar__group');
+    const text = (await brand.textContent()).trim();
+    if (text !== 'King Gizzard & The Lizard Wizard') throw new Error(`rótulo = «${text}»`);
+
+    const [a, b] = [await brand.boundingBox(), await page.locator('#searchToggle').boundingBox()];
+    const dy = Math.abs((a.y + a.height / 2) - (b.y + b.height / 2));
+    if (dy > 4) throw new Error(`descuadrado con la lupa: ${dy.toFixed(1)}px`);
   });
   await step('secciones de publicaciones', async () => {
     const titles = await page.locator('.section__title').allTextContents();
@@ -258,7 +278,7 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
     if (n !== 1) throw new Error(`${n} iconos visibles`);
   });
   await step('el nombre de la banda se abrevia a KGLW', async () => {
-    const text = await page.locator('body').innerText();
+    const text = await bodyWithoutBrand(page);
     if (/King\s*Gizzard/i.test(text)) {
       const hit = text.match(/.{0,40}King\s*Gizzard.{0,40}/i)[0];
       throw new Error(`nombre largo sin abreviar: «${hit.trim()}»`);
@@ -321,6 +341,8 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
     if (t !== 'Grabación') throw new Error(`título = «${t}»`);
     if (!(await page.locator('#navBack').isVisible())) throw new Error('sin botón atrás');
     if (await page.locator('#searchbar').isVisible()) throw new Error('el buscador siguió desplegado al navegar');
+    // El grupo no se va: con título encima queda como antetítulo.
+    if (!(await page.locator('.topbar__group').isVisible())) throw new Error('desapareció el nombre del grupo');
   });
   await step('deduplicación de derivados (4 temas, no 12)', async () => {
     const n = await page.locator('.track').count();
@@ -503,7 +525,7 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
     await p4.goto(url, { waitUntil: 'networkidle' });
     await p4.waitForSelector('.pub', { timeout: 8000 });
 
-    const body = await p4.locator('body').innerText();
+    const body = await bodyWithoutBrand(p4);
     if (/King\s*Gizzard/i.test(body)) {
       throw new Error(`sobrevivió la caché vieja: «${body.match(/.{0,50}King\s*Gizzard.{0,30}/i)[0].trim()}»`);
     }
@@ -531,7 +553,7 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
     }, DATA_VERSION);
     await p5.goto(url, { waitUntil: 'networkidle' });
     await p5.waitForSelector('.pub', { timeout: 8000 });
-    const body = await p5.locator('body').innerText();
+    const body = await bodyWithoutBrand(p5);
     if (/King\s*Gizzard/i.test(body)) {
       throw new Error(`se pintó el nombre largo: «${body.match(/.{0,50}King\s*Gizzard.{0,30}/i)[0].trim()}»`);
     }

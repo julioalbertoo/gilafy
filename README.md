@@ -4,13 +4,19 @@ Una réplica de la interfaz de Spotify que reproduce **el material público de
 KGLW** (King Gizzard & The Lizard Wizard), servido en directo desde Internet
 Archive.
 
-En la interfaz el nombre aparece siempre abreviado: el completo provoca saltos
-de línea en la barra de reproducción, en las filas de temas y en la cabecera,
-sobre todo en el teléfono. `app.js` normaliza todas las variantes que usa el
-archivo (`King Gizzard & The Lizard Wizard`, `…and the…`,
+En los datos que llegan del archivo el nombre aparece siempre abreviado: el
+completo provoca saltos de línea en la barra de reproducción y en las filas de
+temas, sobre todo en el teléfono. `app.js` normaliza todas las variantes que usa
+el archivo (`King Gizzard & The Lizard Wizard`, `…and the…`,
 `KingGizzardAndTheLizardWizard`, `King Gizzard` a secas) a `KGLW` al pintar,
 y conserva el nombre completo sólo en las consultas, que es donde tiene que
 coincidir literalmente.
+
+La excepción es el rótulo de la cabecera (`.topbar__group`), que lleva el nombre
+entero a propósito: es la marca de la app, no un dato del archivo. Se queda a la
+altura de la lupa en todas las vistas —solo y con el peso del titular en
+publicaciones, de antetítulo sobre el título en el resto— y se recorta con
+puntos suspensivos si no cabe.
 
 Ojo con lo que se guarda: el catálogo y la sesión van a `localStorage` **ya
 procesados**, así que cambiar cómo se derivan no basta — las copias viejas
