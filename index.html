@@ -80,14 +80,18 @@
 
       <div class="topbar__right">
         <a class="pill pill--ghost" href="https://archive.org/details/KingGizzardAndTheLizardWizard" target="_blank" rel="noopener noreferrer">Fuente</a>
+        <button class="icon-btn" id="searchToggle" aria-label="Buscar" aria-expanded="false" aria-controls="searchbar">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M10.5 3a7.5 7.5 0 1 0 4.55 13.46l4.24 4.25a1 1 0 0 0 1.42-1.42l-4.25-4.24A7.5 7.5 0 0 0 10.5 3m0 2a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11"/></svg>
+        </button>
         <a class="avatar" href="#/library" data-route="library" title="Tu biblioteca" aria-label="Tu biblioteca">KG</a>
       </div>
     </header>
 
     <!-- ── Buscador ────────────────────────────────────────────
-         Fijo bajo la cabecera: no se desplaza con el contenido, porque vive
-         fuera de #view, que es lo único que hace scroll. -->
-    <div class="searchbar" id="searchbar">
+         Oculto de partida: lo despliega la lupa de la cabecera. Cuando está
+         visible se queda fijo bajo ella, porque vive fuera de #view, que es lo
+         único que hace scroll. -->
+    <div class="searchbar" id="searchbar" hidden>
       <form class="search" id="searchForm" role="search">
         <svg class="search__icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M10.5 3a7.5 7.5 0 1 0 4.55 13.46l4.24 4.25a1 1 0 0 0 1.42-1.42l-4.25-4.24A7.5 7.5 0 0 0 10.5 3m0 2a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11"/></svg>
         <input class="search__input" id="searchInput" type="search" autocomplete="off"

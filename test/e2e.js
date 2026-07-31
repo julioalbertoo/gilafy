@@ -185,9 +185,13 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
     const body = await page.locator('body').innerText();
     if (body.includes('Utrecht')) throw new Error('se coló un directo en la búsqueda de estudio');
   });
-  await step('la cabecera anuncia la vista', async () => {
-    const t = await page.locator('#viewTitle').textContent();
-    if (t !== 'Publicaciones') throw new Error(`título = «${t}»`);
+  await step('la cabecera de publicaciones va desnuda', async () => {
+    // Publicaciones es la portada: ni título ni botón atrás, que no llevaría
+    // a ninguna parte. El resto de vistas sí se anuncian.
+    if (await page.locator('#viewTitle').isVisible()) {
+      throw new Error(`sigue el título «${await page.locator('#viewTitle').textContent()}»`);
+    }
+    if (await page.locator('#navBack').isVisible()) throw new Error('sigue el botón atrás');
   });
   await step('secciones de publicaciones', async () => {
     const titles = await page.locator('.section__title').allTextContents();
@@ -240,6 +244,26 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
   });
   await page.screenshot({ path: `${OUT}/01-home.png` });
 
+  await step('el buscador no aparece hasta pulsar la lupa', async () => {
+    if (await page.locator('#searchbar').isVisible()) throw new Error('la barra ya estaba desplegada');
+    // La lupa vive arriba a la derecha, junto al atajo a la biblioteca.
+    const sitio = await page.evaluate(() => {
+      const r = (s) => document.querySelector(s).getBoundingClientRect();
+      return { lupa: r('#searchToggle'), kg: r('.avatar'), cabecera: r('.topbar') };
+    });
+    if (sitio.cabecera.right - sitio.lupa.right > 120) throw new Error('la lupa no está pegada a la derecha');
+    if (sitio.lupa.left > sitio.kg.left) throw new Error('la lupa quedó por detrás de KG');
+    await page.locator('#searchToggle').click();
+    await page.waitForSelector('#searchbar:visible', { timeout: 4000 });
+    const foco = await page.evaluate(() => document.activeElement.id);
+    if (foco !== 'searchInput') throw new Error(`el foco se quedó en «${foco}»`);
+    // Volver a pulsarla la repliega.
+    await page.locator('#searchToggle').click();
+    if (await page.locator('#searchbar').isVisible()) throw new Error('no se plegó al repulsar');
+    await page.locator('#searchToggle').click();
+    await page.waitForSelector('#searchbar:visible', { timeout: 4000 });
+  });
+
   await step('el buscador queda arriba y no se desplaza con el contenido', async () => {
     const antes = await page.evaluate(() => {
       const r = (sel) => document.querySelector(sel).getBoundingClientRect();
@@ -268,6 +292,12 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
   await step('abrir grabación', async () => {
     await page.locator('.pub__open').first().click();
     await page.waitForSelector('.track', { timeout: 8000 });
+  });
+  await step('fuera de la portada vuelven título y botón atrás', async () => {
+    const t = await page.locator('#viewTitle').textContent();
+    if (t !== 'Grabación') throw new Error(`título = «${t}»`);
+    if (!(await page.locator('#navBack').isVisible())) throw new Error('sin botón atrás');
+    if (await page.locator('#searchbar').isVisible()) throw new Error('el buscador siguió desplegado al navegar');
   });
   await step('deduplicación de derivados (4 temas, no 12)', async () => {
     const n = await page.locator('.track').count();
@@ -395,6 +425,8 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
 
   console.log('\n== Búsqueda y biblioteca ==');
   await step('buscar por ciudad', async () => {
+    await page.locator('#searchToggle').click();
+    await page.waitForSelector('#searchbar:visible', { timeout: 4000 });
     await page.locator('#searchInput').fill('Barcelona');
     await page.waitForFunction(() => location.hash.includes('search'), { timeout: 4000 });
     await page.waitForSelector('.card', { timeout: 6000 });
@@ -792,6 +824,9 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
     });
 
     await step(`${L.name}: el buscador se queda arriba`, async () => {
+      if (await p3.locator('#searchbar').isVisible()) throw new Error('la barra arranca desplegada');
+      await p3.locator('#searchToggle').click();
+      await p3.waitForSelector('#searchbar:visible', { timeout: 4000 });
       const m = await p3.evaluate(() => {
         const r = (sel) => document.querySelector(sel).getBoundingClientRect();
         return { barra: r('.searchbar'), campo: r('#searchInput'), vista: r('.view'), player: r('#player'), alto: window.innerHeight };

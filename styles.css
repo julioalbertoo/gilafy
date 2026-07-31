@@ -160,6 +160,13 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   margin: 0; text-align: center;
 }
 
+/* Cada bloque en su columna, y no por orden de aparición: en publicaciones no
+   hay título —ni botón atrás— y sin esto el grupo de la derecha se colaría en
+   el hueco que dejan. */
+.topbar__nav   { grid-column: 1; }
+.topbar__title { grid-column: 2; }
+.topbar__right { grid-column: 3; }
+
 /* Adelante y el enlace a la fuente son de escritorio; atrás y el atajo a la
    biblioteca se quedan en el teléfono, que ya no tiene barra de pestañas. */
 .topbar__nav { display: flex; }
@@ -641,8 +648,10 @@ a.avatar.is-active { background: var(--text-base); color: #000; }
 }
 .searchbar .search { width: 100%; }
 /* Al desplazar, la sombra la pinta el buscador: es el último elemento de la
-   cabecera fija y el que queda pegado al contenido que pasa por debajo. */
+   cabecera fija y el que queda pegado al contenido que pasa por debajo.
+   Plegado —que es lo normal— esa condición vuelve a la cabecera. */
 .topbar.is-stuck + .searchbar { box-shadow: 0 6px 12px rgba(0,0,0,.45); }
+.topbar.is-stuck:has(+ .searchbar[hidden]) { box-shadow: 0 6px 12px rgba(0,0,0,.45); }
 
 /* ── Reproduciendo ahora, a pantalla completa ─────────────── */
 /* Se abre al pulsar la barra inferior. Cubre todo, incluida la barra de

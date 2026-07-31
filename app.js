@@ -1206,9 +1206,26 @@ function parseHash() {
   return { name, param: decodeURIComponent(rest.join('/')) };
 }
 
-/** Título de la cabecera: es la única referencia de dónde estás en el móvil. */
+/** Título de la cabecera: es la única referencia de dónde estás en el móvil.
+ *  Publicaciones es la portada y no lo lleva: allí la cabecera va desnuda. */
 function setViewTitle(text) {
-  $('#viewTitle').textContent = text;
+  const el = $('#viewTitle');
+  el.textContent = text;
+  el.hidden = !text;   // sin texto no dejamos un encabezado vacío colgando
+}
+
+/** Despliega o repliega el buscador, que de partida no ocupa sitio.
+ *  Cerrarlo desde la propia búsqueda vacía el campo y vuelve a la portada:
+ *  sin barra no habría forma de cambiar la consulta. */
+function setSearchOpen(open, { focus = false } = {}) {
+  const bar = $('#searchbar');
+  if (bar.hidden !== !open) {
+    bar.hidden = !open;
+    const btn = $('#searchToggle');
+    btn.setAttribute('aria-expanded', String(open));
+    btn.classList.toggle('is-on', open);
+  }
+  if (open && focus) $('#searchInput').focus();
 }
 
 function router() {
@@ -1222,11 +1239,20 @@ function router() {
   $$('[data-route]').forEach((el) => el.classList.toggle('is-active', el.dataset.route === route.name));
   viewEl.scrollTop = 0;
 
+  // Publicaciones es el punto de partida: no hay adónde volver, así que
+  // tampoco hay botón atrás.
+  $('#navBack').hidden = route.name === 'home';
+
+  // La búsqueda siempre enseña su barra; en las demás vistas la deja quien la
+  // abrió con la lupa, y cualquier navegación la repliega.
+  if (route.name === 'search') setSearchOpen(true);
+  else setSearchOpen(false);
+
   switch (route.name) {
     case 'album':   setViewTitle('Grabación');  viewAlbum(route.param); break;
     case 'search':  setViewTitle('Buscar');     viewSearch(route.param); break;
     case 'library': setViewTitle('Tu biblioteca'); viewLibrary(); break;
-    default:        setViewTitle('Publicaciones'); viewHome();
+    default:        setViewTitle(''); viewHome();
   }
 }
 
@@ -1361,6 +1387,19 @@ function bindUI() {
   // Búsqueda
   const input = $('#searchInput');
   let searchTimer = null;
+
+  // La lupa de la cabecera es lo único que despliega el buscador. Al plegarlo
+  // desde la propia búsqueda se vuelve a publicaciones, que es de donde vino.
+  $('#searchToggle').addEventListener('click', () => {
+    const open = $('#searchbar').hidden;
+    setSearchOpen(open, { focus: true });
+    if (!open) {
+      input.value = '';
+      clearTimeout(searchTimer);
+      if (state.route.name === 'search') location.hash = '#/home';
+    }
+  });
+
   $('#searchForm').addEventListener('submit', (e) => e.preventDefault());
   input.addEventListener('input', () => {
     clearTimeout(searchTimer);
@@ -1484,7 +1523,7 @@ function bindUI() {
       case 'm': case 'M': $('#btnMute').click(); break;
       case 's': case 'S': ctrls('shuffle')[0].click(); break;
       case 'r': case 'R': ctrls('repeat')[0].click(); break;
-      case '/':          e.preventDefault(); $('#searchInput').focus(); break;
+      case '/':          e.preventDefault(); setSearchOpen(true, { focus: true }); break;
       case 'Escape':     closeNowPlaying(); break;
       default: break;
     }
