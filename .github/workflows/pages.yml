@@ -1,0 +1,49 @@
+name: Desplegar Gilafy en GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Un despliegue a la vez; no cancelamos el que ya esté en curso.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # `enablement: true` da de alta Pages por API si aún no lo está,
+      # de modo que el primer despliegue no necesita tocar Ajustes.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      # Publicamos sólo la app: el arnés de pruebas y los metadatos del
+      # repositorio no tienen por qué servirse.
+      - name: Preparar la carpeta a publicar
+        run: |
+          mkdir -p dist
+          cp index.html styles.css app.js sw.js manifest.json icon.svg icon-maskable.svg dist/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
