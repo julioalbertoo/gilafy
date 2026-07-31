@@ -30,7 +30,7 @@ const CATALOG_TTL = 12 * 60 * 60 * 1000;   // 12 h
    las copias viejas seguirían pintándose hasta que caduquen. Subir esta
    versión las descarta. Las preferencias del usuario —me gusta, historial,
    volumen— no llevan versión y sobreviven a los cambios. */
-const DATA_VERSION = 3;
+const DATA_VERSION = 4;
 
 /* El identificador exacto de la colección puede variar; probamos
    varias estrategias y nos quedamos con la primera que devuelva
@@ -59,6 +59,31 @@ const FIELDS = ['identifier', 'title', 'date', 'year', 'creator', 'coverage',
 const FREE_STUDIO = [
   { key: 'polygondwanaland', title: 'Polygondwanaland', year: '2017' },
 ];
+
+/* Tipos de publicación, en el orden en que se listan.
+ *
+ * `studio` sale de FREE_STUDIO; el resto se deduce del título, que es lo único
+ * que el buscador del archivo devuelve: la mayoría de subidas son conciertos
+ * completos, y sólo unas pocas se anuncian como EP o sencillo. Cuando un tipo
+ * no tiene nada, ni su filtro ni su sección se pintan. */
+const PUB_KINDS = [
+  { id: 'studio', label: 'Álbumes',        one: 'Álbum' },
+  { id: 'live',   label: 'Directos',       one: 'Directo' },
+  { id: 'single', label: 'Sencillos y EP', one: 'Sencillo' },
+];
+
+const SINGLE_RE = /(\bEP\b|\bE\.P\.|\bsingles?\b|\bsencillos?\b|\b7"|\b10")/i;
+
+/** Tipo de una publicación que no es de estudio. */
+const kindFromTitle = (title) => (SINGLE_RE.test(String(title ?? '')) ? 'single' : 'live');
+
+/** Etiqueta legible del tipo («Álbum», «Directo», «Sencillo»). */
+const kindLabel = (kind) => PUB_KINDS.find((k) => k.id === kind)?.one || 'Directo';
+
+/* Cuántas filas se pintan por sección: unas pocas en la vista general,
+   muchas más cuando el filtro deja una sola. */
+const PUB_PREVIEW = 12;
+const PUB_FULL = 60;
 
 /* Preferencia de formato: derivados que cualquier navegador reproduce.
    Los originales (FLAC, SHN) se descartan. */
@@ -190,6 +215,7 @@ const state = {
   liked: new Set(store.get('liked', [])),
   history: store.get('history', []),
   shelfFilter: 'all',
+  pubFilter: 'all',        // filtro de tipo en la vista de publicaciones
   seeking: false,
 };
 
@@ -237,7 +263,7 @@ function normalizeDoc(doc) {
   return {
     id,
     title,
-    kind: 'live',
+    kind: kindFromTitle(title),
     creator: kglw(first(doc.creator)) || ARTIST,
     date: first(doc.date) || first(doc.publicdate) || '',
     year: first(doc.year) || String(first(doc.date) || '').slice(0, 4),
@@ -294,7 +320,15 @@ function cachedCatalog({ ignoreAge = false } = {}) {
 
 /** Vuelve a pasar por el acortador los campos visibles de un documento. */
 function shortenDoc(doc) {
-  return { ...doc, kind: doc.kind || 'live', title: kglw(doc.title) || doc.id, creator: kglw(doc.creator) || ARTIST };
+  const title = kglw(doc.title) || doc.id;
+  // El tipo también se vuelve a deducir al leer, por el mismo motivo que la
+  // abreviatura: una copia guardada por un app.js anterior no lo traía.
+  return {
+    ...doc,
+    title,
+    kind: doc.kind === 'studio' ? 'studio' : kindFromTitle(title),
+    creator: kglw(doc.creator) || ARTIST,
+  };
 }
 
 async function loadCatalog({ force = false } = {}) {
@@ -752,11 +786,60 @@ function rowHTML(title, docs, { more = '' } = {}) {
   </section>`;
 }
 
+/** Fila de publicación: carátula, título y «Tipo · Año», como en la app real.
+ *
+ * El enlace es una capa que cubre la fila entera —igual que en la barra de
+ * reproducción— para no meter un botón dentro de un <a>, que no es válido. */
+function pubHTML(doc) {
+  const meta = [kindLabel(doc.kind), doc.year || String(doc.date).slice(0, 4)].filter(Boolean).join(' · ');
+  return `<div class="pub" data-id="${esc(doc.id)}">
+    <a class="pub__open" href="#/album/${encodeURIComponent(doc.id)}" aria-label="Abrir ${esc(doc.title)}"></a>
+    <img class="pub__art" src="${esc(doc.art)}" alt="" loading="lazy" data-fb="${esc(doc.title)}">
+    <div class="pub__cell">
+      <p class="pub__title">${esc(doc.title)}</p>
+      <p class="pub__meta">${esc(meta)}</p>
+    </div>
+    <button class="pub__play" data-play="${esc(doc.id)}" aria-label="Reproducir ${esc(doc.title)}">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M7 4.5v15l12-7.5z"/></svg>
+    </button>
+  </div>`;
+}
+
+function pubSectionHTML(title, docs, { more = '' } = {}) {
+  if (!docs.length) return '';
+  return `<section class="section">
+    <div class="section__head">
+      <h2 class="section__title">${esc(title)}</h2>
+      ${more ? `<button class="section__more" data-filter="${esc(more)}">Mostrar todo</button>` : ''}
+    </div>
+    <div class="pubs">${docs.map(pubHTML).join('')}</div>
+  </section>`;
+}
+
+/** Carril horizontal, al estilo de los carruseles de Spotify. */
+function railHTML(title, docs) {
+  if (!docs.length) return '';
+  return `<section class="section">
+    <div class="section__head"><h2 class="section__title">${esc(title)}</h2></div>
+    <div class="rail">${docs.map(cardHTML).join('')}</div>
+  </section>`;
+}
+
 function skeletonHTML(count = 10) {
   return `<div class="hero hero--home"><h1 class="hero__title">Cargando…</h1></div>
     <section class="section"><div class="grid">
     ${Array.from({ length: count }, () => '<div class="skeleton sk-card"></div>').join('')}
     </div></section>`;
+}
+
+/** Esqueleto de la vista de publicaciones: filas, no tarjetas. */
+function pubSkeletonHTML(count = 6) {
+  return `<div class="filters">
+      ${Array.from({ length: 3 }, () => '<div class="skeleton sk-filter"></div>').join('')}
+    </div>
+    <div class="pubs">
+      ${Array.from({ length: count }, () => '<div class="skeleton sk-pub"></div>').join('')}
+    </div>`;
 }
 
 function errorHTML(message) {
@@ -771,8 +854,13 @@ function errorHTML(message) {
 
 /* ── Vistas ────────────────────────────────────────────────── */
 
+/**
+ * Publicaciones: lo primero que se ve al abrir la app. Filtros por tipo, la
+ * última publicación destacada, las secciones de álbumes, directos y sencillos,
+ * y abajo del todo el carril horizontal de lo escuchado recientemente.
+ */
 async function viewHome() {
-  viewEl.innerHTML = skeletonHTML();
+  viewEl.innerHTML = pubSkeletonHTML();
   try {
     await loadCatalog();
   } catch (err) {
@@ -780,40 +868,38 @@ async function viewHome() {
     return;
   }
   renderShelf();
-
-  const hour = new Date().getHours();
-  const greeting = hour < 6 ? 'Buenas noches' : hour < 13 ? 'Buenos días'
-                 : hour < 21 ? 'Buenas tardes' : 'Buenas noches';
-
-  const studio = state.catalog.filter((d) => d.kind === 'studio');
-  const live = state.catalog.filter((d) => d.kind !== 'studio');
-  const byDate = [...live].sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  const popular = [...live].sort((a, b) => b.downloads - a.downloads);
-  const rated = live.filter((d) => d.rating >= 4).sort((a, b) => b.rating - a.rating);
-  const recent = state.history.map((id) => state.catalog.find((d) => d.id === id)).filter(Boolean);
-
   setHero(hashHue('home'));
 
+  const newest = (docs) => [...docs].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const byKind = new Map(PUB_KINDS.map((k) => [k.id, newest(state.catalog.filter((d) => d.kind === k.id))]));
+
+  // Sólo se ofrecen los filtros que tienen algo detrás.
+  const available = PUB_KINDS.filter((k) => byKind.get(k.id).length);
+  if (!available.some((k) => k.id === state.pubFilter)) state.pubFilter = 'all';
+
+  const shown = state.pubFilter === 'all' ? available : available.filter((k) => k.id === state.pubFilter);
+  const limit = state.pubFilter === 'all' ? PUB_PREVIEW : PUB_FULL;
+
+  const latest = newest(shown.flatMap((k) => byKind.get(k.id)))[0];
+  const recent = state.history.map((id) => state.catalog.find((d) => d.id === id)).filter(Boolean);
+
   viewEl.innerHTML = `
-    <div class="hero hero--home">
-      <p class="hero__kicker">${esc(ARTIST)}</p>
-      <h1 class="hero__title">${esc(greeting)}</h1>
-      <p class="hero__facts"><b>${nfmt.format(state.catalog.length)}</b> grabaciones públicas listas para sonar.</p>
+    <div class="filters" role="list">
+      <button class="filter ${state.pubFilter === 'all' ? 'is-on' : ''}" data-filter="all" role="listitem">Todo</button>
+      ${available.map((k) => `<button class="filter ${state.pubFilter === k.id ? 'is-on' : ''}"
+        data-filter="${k.id}" role="listitem">${esc(k.label)}</button>`).join('')}
     </div>
-    <div class="quick">
-      ${[...studio, ...popular].slice(0, 6).map((d) => `
-        <a class="quick__item" href="#/album/${encodeURIComponent(d.id)}">
-          <img class="quick__art" src="${esc(d.art)}" alt="" loading="lazy" data-fb="${esc(d.title)}">
-          <span class="quick__name truncate">${esc(d.title)}</span>
-        </a>`).join('')}
-    </div>
-    ${recent.length ? rowHTML('Escuchado hace poco', recent.slice(0, 10)) : ''}
-    ${studio.length ? rowHTML('Estudio, liberado por la banda', studio) : ''}
-    ${rowHTML('Los más escuchados', popular.slice(0, 10))}
-    ${rowHTML('Últimos directos publicados', byDate.slice(0, 10))}
-    ${rated.length ? rowHTML('Mejor valorados por el archivo', rated.slice(0, 10)) : ''}
-    ${rowHTML('Todo el archivo', state.catalog.slice(0, 40), { more: '#/search' })}
+    ${latest ? pubSectionHTML('Última publicación', [latest]) : ''}
+    ${shown.map((k) => {
+      const docs = byKind.get(k.id);
+      return pubSectionHTML(k.label, docs.slice(0, limit),
+        { more: docs.length > limit ? k.id : '' });
+    }).join('')}
+    ${!latest ? `<div class="state"><h2 class="state__title">Nada publicado todavía</h2>
+      <p class="state__body">El archivo no devolvió publicaciones de este tipo.</p></div>` : ''}
+    ${railHTML('Escuchado recientemente', recent.slice(0, 20))}
   `;
+  markPlayingRows();
 }
 
 async function viewSearch(query = '') {
@@ -948,7 +1034,7 @@ async function viewLibrary() {
     ${likedShows.length ? rowHTML('Grabaciones con temas guardados', likedShows) : `
       <div class="state"><h2 class="state__title">Aún no has guardado nada</h2>
       <p class="state__body">Pulsa el corazón en la barra de reproducción para guardar el tema que suena.</p></div>`}
-    ${recent.length ? rowHTML('Historial de escucha', recent) : ''}`;
+    ${railHTML('Escuchado recientemente', recent)}`;
 }
 
 /** Reúne todas las pistas marcadas como favoritas (requiere cargar sus items). */
@@ -1113,6 +1199,11 @@ function parseHash() {
   return { name, param: decodeURIComponent(rest.join('/')) };
 }
 
+/** Título de la cabecera: es la única referencia de dónde estás en el móvil. */
+function setViewTitle(text) {
+  $('#viewTitle').textContent = text;
+}
+
 function router() {
   const route = parseHash();
   state.route = route;
@@ -1125,10 +1216,10 @@ function router() {
   viewEl.scrollTop = 0;
 
   switch (route.name) {
-    case 'album':   viewAlbum(route.param); break;
-    case 'search':  viewSearch(route.param); break;
-    case 'library': viewLibrary(); break;
-    default:        viewHome();
+    case 'album':   setViewTitle('Grabación');  viewAlbum(route.param); break;
+    case 'search':  setViewTitle('Buscar');     viewSearch(route.param); break;
+    case 'library': setViewTitle('Tu biblioteca'); viewLibrary(); break;
+    default:        setViewTitle('Publicaciones'); viewHome();
   }
 }
 
@@ -1136,6 +1227,7 @@ function router() {
 
 function markPlayingRows() {
   const track = currentTrack();
+  $$('.pub').forEach((row) => row.classList.toggle('is-playing', row.dataset.id === track?.itemId));
   $$('.track').forEach((row) => {
     const on = !!track && row.dataset.item === track.itemId
       && Number(row.dataset.index) === state.queue.indexOf(track);
@@ -1299,6 +1391,16 @@ function bindUI() {
   viewEl.addEventListener('click', (e) => {
     const play = e.target.closest('[data-play]');
     if (play) { e.preventDefault(); playItem(play.dataset.play); return; }
+
+    // Filtros de publicación: sólo repintan, no navegan.
+    const filter = e.target.closest('[data-filter]');
+    if (filter) {
+      e.preventDefault();
+      state.pubFilter = filter.dataset.filter;
+      viewEl.scrollTop = 0;
+      viewHome();
+      return;
+    }
 
     const row = e.target.closest('.track');
     if (row) { playItem(row.dataset.item, Number(row.dataset.index)); return; }

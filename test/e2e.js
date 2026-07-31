@@ -155,7 +155,7 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
 
   const url = `http://localhost:${PORT}/index.html`;
 
-  console.log('\n== Portada ==');
+  console.log('\n== Publicaciones ==');
   await page.goto(url, { waitUntil: 'networkidle' });
   await step('el catálogo llega a la estantería', async () => {
     await page.waitForSelector('.shelf__item', { timeout: 8000 });
@@ -165,34 +165,49 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
   });
 
   await step('el disco liberado aparece, deduplicado y etiquetado', async () => {
-    const row = page.locator('.section', { hasText: 'Estudio, liberado por la banda' });
+    const row = page.locator('.section', { hasText: 'Álbumes' });
     await row.waitFor({ timeout: 6000 });
-    const cards = row.locator('.card');
-    if (await cards.count() !== 1) throw new Error(`${await cards.count()} copias del mismo álbum`);
-    const text = await cards.first().innerText();
-    if (!text.includes('Polygondwanaland')) throw new Error(`tarjeta: ${text.trim()}`);
-    if (!text.includes('ESTUDIO') && !text.includes('Estudio')) throw new Error('sin distintivo de estudio');
+    const pubs = row.locator('.pub');
+    if (await pubs.count() !== 1) throw new Error(`${await pubs.count()} copias del mismo álbum`);
+    const text = await pubs.first().innerText();
+    if (!text.includes('Polygondwanaland')) throw new Error(`fila: ${text.trim()}`);
+    if (!text.includes('Álbum')) throw new Error(`sin el tipo de publicación: ${text.trim()}`);
     // Debe elegir la copia más descargada.
-    const href = await cards.first().locator('a').first().getAttribute('href');
+    const href = await pubs.first().locator('.pub__open').getAttribute('href');
     if (!href.includes('Polygondwanaland_mp3')) throw new Error(`eligió ${href}, no la más descargada`);
   });
 
   await step('un directo que cita el título no cuenta como estudio', async () => {
-    // El mismo álbum sale en varias filas; lo que importa es que todo lo
-    // marcado sea el disco liberado y nada más.
-    const marcadas = await page.locator('.card:has(.card__badge) .card__title').allTextContents();
-    if (!marcadas.length) throw new Error('ninguna tarjeta marcada');
-    const intrusas = marcadas.filter((t) => !t.includes('Polygondwanaland'));
-    if (intrusas.length) throw new Error(`marcadas como estudio: ${intrusas.join(' | ')}`);
+    const albumes = await page.locator('.section', { hasText: 'Álbumes' }).locator('.pub__title').allTextContents();
+    if (!albumes.length) throw new Error('la sección de álbumes está vacía');
+    const intrusas = albumes.filter((t) => !t.includes('Polygondwanaland'));
+    if (intrusas.length) throw new Error(`listadas como álbum: ${intrusas.join(' | ')}`);
     const body = await page.locator('body').innerText();
     if (body.includes('Utrecht')) throw new Error('se coló un directo en la búsqueda de estudio');
   });
-  await step('secciones de la portada', async () => {
-    const titles = await page.locator('.section__title').allTextContents();
-    if (!titles.includes('Los más escuchados')) throw new Error(`secciones: ${titles.join(' | ')}`);
+  await step('la cabecera anuncia la vista', async () => {
+    const t = await page.locator('#viewTitle').textContent();
+    if (t !== 'Publicaciones') throw new Error(`título = «${t}»`);
   });
-  await step('tarjetas renderizadas', async () => {
-    if (await page.locator('.card').count() < SHOWS.length) throw new Error('faltan tarjetas');
+  await step('secciones de publicaciones', async () => {
+    const titles = await page.locator('.section__title').allTextContents();
+    for (const wanted of ['Última publicación', 'Álbumes', 'Directos']) {
+      if (!titles.includes(wanted)) throw new Error(`falta «${wanted}»: ${titles.join(' | ')}`);
+    }
+  });
+  await step('filas de publicación renderizadas', async () => {
+    if (await page.locator('.pub').count() < SHOWS.length) throw new Error('faltan filas');
+  });
+  await step('los filtros dejan un solo tipo', async () => {
+    await page.locator('.filter', { hasText: 'Álbumes' }).click();
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll('.section__title')].every((h) => h.textContent !== 'Directos'),
+    null, { timeout: 4000 });
+    const metas = await page.locator('.pub__meta').allTextContents();
+    const intrusas = metas.filter((m) => !m.startsWith('Álbum'));
+    if (intrusas.length) throw new Error(`con el filtro de álbumes se cuelan: ${intrusas.join(' | ')}`);
+    await page.locator('.filter', { hasText: 'Todo' }).click();
+    await page.waitForSelector('.section__title:text-is("Directos")', { timeout: 4000 });
   });
   await step('la cola arranca oculta', async () => {
     if (await page.locator('#queue').isVisible()) throw new Error('el panel de cola es visible');
@@ -211,9 +226,19 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
   });
   await page.screenshot({ path: `${OUT}/01-home.png` });
 
+  await step('el buscador queda fijo abajo, bajo el reproductor', async () => {
+    const m = await page.evaluate(() => {
+      const r = (sel) => document.querySelector(sel).getBoundingClientRect();
+      return { barra: r('.searchbar'), player: r('#player'), alto: window.innerHeight, pestanas: document.querySelectorAll('.tabbar').length };
+    });
+    if (m.pestanas) throw new Error('sigue habiendo barra de pestañas');
+    if (Math.round(m.barra.bottom) !== Math.round(m.alto)) throw new Error(`el buscador no toca el borde: ${m.barra.bottom} de ${m.alto}`);
+    if (Math.round(m.player.bottom) > Math.round(m.barra.top) + 1) throw new Error('el reproductor tapa el buscador');
+  });
+
   console.log('\n== Grabación y reproducción ==');
   await step('abrir grabación', async () => {
-    await page.locator('.card a').first().click();
+    await page.locator('.pub__open').first().click();
     await page.waitForSelector('.track', { timeout: 8000 });
   });
   await step('deduplicación de derivados (4 temas, no 12)', async () => {
@@ -393,7 +418,7 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
       }));
     });
     await p4.goto(url, { waitUntil: 'networkidle' });
-    await p4.waitForSelector('.card', { timeout: 8000 });
+    await p4.waitForSelector('.pub', { timeout: 8000 });
 
     const body = await p4.locator('body').innerText();
     if (/King\s*Gizzard/i.test(body)) {
@@ -422,7 +447,7 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
       }));
     }, DATA_VERSION);
     await p5.goto(url, { waitUntil: 'networkidle' });
-    await p5.waitForSelector('.card', { timeout: 8000 });
+    await p5.waitForSelector('.pub', { timeout: 8000 });
     const body = await p5.locator('body').innerText();
     if (/King\s*Gizzard/i.test(body)) {
       throw new Error(`se pintó el nombre largo: «${body.match(/.{0,50}King\s*Gizzard.{0,30}/i)[0].trim()}»`);
@@ -449,7 +474,7 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
     m.on('pageerror', (e) => errors.push(`error de página (movil): ${e.message}`));
     await m.setViewportSize({ width: 390, height: 844 });
     await m.goto(url, { waitUntil: 'networkidle' });
-    await m.waitForSelector('.card', { timeout: 8000 });
+    await m.waitForSelector('.pub', { timeout: 8000 });
 
     const open = () => m.locator('#npFull').isVisible();
 
@@ -487,7 +512,7 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
     });
 
     await step('pulsar la barra maximiza', async () => {
-      await m.locator('.card a').first().click();
+      await m.locator('.pub__open').first().click();
       await m.waitForSelector('.track', { timeout: 8000 });
       await m.locator('#albumPlay').click();
       await m.waitForFunction(() => !document.querySelector('#audio').paused, { timeout: 8000 });
@@ -605,6 +630,36 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
       await m.locator('#npFullClose').click();
     });
 
+    await step('el escuchado recientemente es un carril horizontal, al final', async () => {
+      // Con un solo elemento no habría nada que desplazar: sembramos el
+      // historial con todo el catálogo y volvemos a publicaciones.
+      await m.evaluate(() => {
+        const ids = JSON.parse(localStorage.getItem('gilafy.catalog')).docs.map((d) => d.id);
+        localStorage.setItem('gilafy.history', JSON.stringify(ids));
+        location.hash = '#/home';
+      });
+      await m.reload({ waitUntil: 'networkidle' });
+      await m.waitForSelector('.rail', { timeout: 8000 });
+
+      const r = await m.evaluate(() => {
+        const rail = document.querySelector('.rail');
+        const secs = [...document.querySelectorAll('.view .section')];
+        return {
+          titulo: rail.closest('.section').querySelector('.section__title').textContent,
+          ultima: secs[secs.length - 1] === rail.closest('.section'),
+          overflow: getComputedStyle(rail).overflowX,
+          desborda: rail.scrollWidth > rail.clientWidth + 1,
+          apilado: rail.scrollHeight > rail.clientHeight + 1,
+        };
+      });
+      if (r.titulo !== 'Escuchado recientemente') throw new Error(`el carril cuelga de «${r.titulo}»`);
+      if (!r.ultima) throw new Error('no es la última sección de la vista');
+      if (r.overflow !== 'auto') throw new Error(`overflow-x = ${r.overflow}`);
+      if (!r.desborda) throw new Error('no hay nada que desplazar en horizontal');
+      if (r.apilado) throw new Error('el carril crece hacia abajo en vez de a lo ancho');
+    });
+    await m.screenshot({ path: `${OUT}/10-carril.png` });
+
     await m.close();
   }
 
@@ -620,19 +675,19 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
   /* La base es el teléfono; cada punto de ruptura sólo añade. Comprobamos
    * qué debe verse y qué no en cada escalón, en ambos sentidos. */
   const LAYOUTS = [
-    { name: 'movil-320',  width: 320,  height: 640,  sidebar: false, tabbar: true,  ctrl: false, cols: 2 },
-    { name: 'movil-390',  width: 390,  height: 844,  sidebar: false, tabbar: true,  ctrl: false, cols: 2 },
-    { name: 'movil-576',  width: 576,  height: 800,  sidebar: false, tabbar: true,  ctrl: false },
-    { name: 'tablet-768', width: 768,  height: 900,  sidebar: true,  tabbar: false, ctrl: true, rail: true },
-    { name: 'tablet-896', width: 896,  height: 900,  sidebar: true,  tabbar: false, ctrl: true, rail: false },
-    { name: 'desktop',    width: 1440, height: 900,  sidebar: true,  tabbar: false, ctrl: true, rail: false },
+    { name: 'movil-320',  width: 320,  height: 640,  sidebar: false, ctrl: false, cols: 2 },
+    { name: 'movil-390',  width: 390,  height: 844,  sidebar: false, ctrl: false, cols: 2 },
+    { name: 'movil-576',  width: 576,  height: 800,  sidebar: false, ctrl: false },
+    { name: 'tablet-768', width: 768,  height: 900,  sidebar: true,  ctrl: true, carril: true },
+    { name: 'tablet-896', width: 896,  height: 900,  sidebar: true,  ctrl: true, carril: false },
+    { name: 'desktop',    width: 1440, height: 900,  sidebar: true,  ctrl: true, carril: false },
   ];
 
   for (const L of LAYOUTS) {
     const p3 = await ctx.newPage();
     await p3.setViewportSize({ width: L.width, height: L.height });
     await p3.goto(url, { waitUntil: 'networkidle' });
-    await p3.waitForSelector('.card', { timeout: 8000 });
+    await p3.waitForSelector('.pub', { timeout: 8000 });
 
     await step(`${L.name}: sin desbordamiento horizontal`, async () => {
       const over = await p3.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -641,11 +696,20 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
 
     await step(`${L.name}: navegación correcta para el tamaño`, async () => {
       const sidebar = await p3.locator('.sidebar').isVisible();
-      const tabbar = await p3.locator('.tabbar').isVisible();
       if (sidebar !== L.sidebar) throw new Error(`barra lateral ${sidebar ? 'visible' : 'oculta'}, se esperaba lo contrario`);
-      if (tabbar !== L.tabbar) throw new Error(`barra de pestañas ${tabbar ? 'visible' : 'oculta'}, se esperaba lo contrario`);
-      // Exactamente una de las dos, nunca las dos ni ninguna.
-      if (sidebar === tabbar) throw new Error('barra lateral y de pestañas a la vez (o ninguna)');
+      if (await p3.locator('.tabbar').count()) throw new Error('quedan restos de la barra de pestañas');
+      // El atajo a la biblioteca sustituye a la pestaña que había: siempre visible.
+      if (!(await p3.locator('.avatar').isVisible())) throw new Error('sin acceso a la biblioteca');
+    });
+
+    await step(`${L.name}: el buscador ocupa el borde inferior`, async () => {
+      const m = await p3.evaluate(() => {
+        const r = (sel) => document.querySelector(sel).getBoundingClientRect();
+        return { barra: r('.searchbar'), campo: r('#searchInput'), player: r('#player'), alto: window.innerHeight };
+      });
+      if (Math.round(m.barra.bottom) !== Math.round(m.alto)) throw new Error(`no toca el borde: ${m.barra.bottom} de ${m.alto}`);
+      if (m.campo.height < 40) throw new Error(`el campo se quedó en ${m.campo.height}px`);
+      if (Math.round(m.player.bottom) > Math.round(m.barra.top) + 1) throw new Error('el reproductor lo tapa');
     });
 
     await step(`${L.name}: controles del reproductor`, async () => {
@@ -657,22 +721,25 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
       if (full === compact) throw new Error('cero o dos botones de play visibles');
     });
 
-    if (L.rail !== undefined) {
-      await step(`${L.name}: barra lateral ${L.rail ? 'como carril de iconos' : 'desplegada'}`, async () => {
+    if (L.carril !== undefined) {
+      await step(`${L.name}: barra lateral ${L.carril ? 'como carril de iconos' : 'desplegada'}`, async () => {
         const labelled = await p3.locator('.brand__name').isVisible();
-        if (labelled === L.rail) throw new Error(`etiquetas ${labelled ? 'visibles' : 'ocultas'}`);
+        if (labelled === L.carril) throw new Error(`etiquetas ${labelled ? 'visibles' : 'ocultas'}`);
       });
     }
 
+    await p3.screenshot({ path: `${OUT}/08-${L.name}.png` });
+
     if (L.cols) {
       await step(`${L.name}: rejilla de ${L.cols} columnas`, async () => {
+        // La rejilla vive en la búsqueda; publicaciones es una lista de filas.
+        await p3.evaluate(() => { location.hash = '#/search'; });
+        await p3.waitForSelector('.grid', { timeout: 6000 });
         const cols = await p3.evaluate(() =>
           getComputedStyle(document.querySelector('.grid')).gridTemplateColumns.split(' ').length);
         if (cols !== L.cols) throw new Error(`${cols} columnas`);
       });
     }
-
-    await p3.screenshot({ path: `${OUT}/08-${L.name}.png` });
     await p3.close();
   }
 
@@ -691,7 +758,7 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
     const pIOS = await tactil.newPage();
     pIOS.on('pageerror', (e) => errors.push(`error de página (táctil): ${e.message}`));
     await pIOS.goto(url, { waitUntil: 'networkidle' });
-    await pIOS.waitForSelector('.card', { timeout: 8000 });
+    await pIOS.waitForSelector('.pub', { timeout: 8000 });
 
     await step('ningún campo baja de 16px con puntero grueso', async () => {
       const chicos = await pIOS.$$eval('input, select, textarea', (els) => els
@@ -706,24 +773,23 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
     });
 
     /* La zona que se reserva el indicador de inicio tiene que sumarse a la
-     * barra de pestañas, no descontarse de ella: con `box-sizing: border-box`
-     * un `padding-bottom` suelto se la come a los iconos. Chromium no expone
+     * barra del buscador, no descontarse de ella: con `box-sizing: border-box`
+     * un `padding-bottom` suelto se la come al campo. Chromium no expone
      * insets, así que forzamos el valor del token. */
-    await step('la zona segura se suma a la barra de pestañas', async () => {
+    await step('la zona segura se suma a la barra del buscador', async () => {
       const medir = (inset) => pIOS.evaluate((v) => {
         document.documentElement.style.setProperty('--safe-b', v);
-        const tb = document.querySelector('.tabbar');
-        const cs = getComputedStyle(tb);
+        const sb = document.querySelector('.searchbar');
         return {
-          alto: tb.getBoundingClientRect().height,
-          iconos: tb.clientHeight - parseFloat(cs.paddingBottom),
+          alto: sb.getBoundingClientRect().height,
+          campo: document.querySelector('#searchInput').getBoundingClientRect().height,
           player: window.innerHeight - document.querySelector('#player').getBoundingClientRect().bottom,
         };
       }, inset);
 
       const sin = await medir('0px');
       const con = await medir('34px');
-      if (con.iconos !== sin.iconos) throw new Error(`los iconos pierden ${sin.iconos - con.iconos}px`);
+      if (con.campo !== sin.campo) throw new Error(`el campo pierde ${sin.campo - con.campo}px`);
       if (con.alto - sin.alto !== 34) throw new Error(`la barra creció ${con.alto - sin.alto}px, esperaba 34`);
       if (Math.round(con.player) !== Math.round(con.alto)) {
         throw new Error(`el reproductor queda a ${con.player}px del borde y la barra mide ${con.alto}px`);

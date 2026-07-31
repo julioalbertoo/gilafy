@@ -86,8 +86,8 @@ declara para escritorio y luego se deshace hacia abajo.
 
 | Desde | Qué añade |
 |---|---|
-| base | Una columna, barra de pestañas inferior, reproductor compacto con el progreso como línea fina, rejilla de 2 columnas |
-| 576px | La rejilla pasa a fluir (`auto-fill`) |
+| base | Una columna, buscador fijo abajo, reproductor compacto con el progreso como línea fina, rejilla de 2 columnas |
+| 576px | La rejilla pasa a fluir (`auto-fill`), el carril crece |
 | 768px | Barra lateral como carril de iconos, controles completos del reproductor, cabecera de columnas en la lista de temas, héroe en fila, `:hover` en las tarjetas |
 | 896px | La barra lateral se despliega con etiquetas |
 | 1024px | La cola deja de flotar y ocupa su propia columna |
@@ -123,15 +123,42 @@ Dos medidas no son negociables en el teléfono, y las dos son de Safari iOS:
   interfaz se desborda por la derecha. Los 14px del diseño vuelven bajo
   `@media (pointer: fine)`, donde ese zoom no existe.
 - **La zona segura de abajo se suma, no se descuenta.** `--safe-b` vive dentro
-  de `--tabbar-h`, así que la barra de pestañas crece con el indicador de
-  inicio en vez de comerle sitio a los iconos, y todo lo que se apila encima
+  de `--searchbar-h`, así que la barra del buscador crece con el indicador de
+  inicio en vez de comerle sitio al campo, y todo lo que se apila encima
   —reproductor, cola, aviso y el alto de `.app`— se aparta solo.
 
 [design]: https://getdesign.md/spotify/design-md
 
+## Estructura de la interfaz
+
+La app abre directamente en **Publicaciones**, sin portada intermedia y sin
+menú inferior:
+
+1. **Filtros por tipo** en una fila que se desplaza en horizontal: *Todo*,
+   *Álbumes*, *Directos*, *Sencillos y EP*. Sólo aparece el filtro de un tipo
+   que tenga algo detrás.
+2. **Última publicación**, la más reciente de lo que el filtro deje a la vista.
+3. **Una sección por tipo**, en filas de carátula + título + «Tipo · Año». Con
+   *Todo* se muestran doce por sección y un *Mostrar todo* que salta al filtro;
+   ya filtrado, sesenta.
+4. **Escuchado recientemente**, al final, como carril horizontal con anclaje
+   (`scroll-snap`), igual que los carruseles de la app original.
+
+El tipo sale del propio catálogo: `studio` lo marca `FREE_STUDIO`, y del resto
+se deduce por el título, que es lo único que devuelve el buscador del archivo
+—la inmensa mayoría son conciertos completos, y sólo unas pocas subidas se
+anuncian como EP o sencillo. Se vuelve a deducir **al leer** la copia guardada,
+por el mismo motivo que la abreviatura del nombre.
+
+**El buscador vive fijo en el borde inferior**, donde antes estaba la barra de
+pestañas: es el sitio que alcanza el pulgar y la única navegación permanente
+que queda en el teléfono, junto al chevrón de atrás y el atajo a la biblioteca
+de la cabecera. En escritorio se queda ahí también, como píldora centrada bajo
+el reproductor, y la barra lateral sigue haciendo de navegación principal.
+
 ## Funcionalidad
 
-- Portada con estudio liberado, novedades, más escuchados, valorados e historial
+- Publicaciones filtrables por tipo, con la última destacada y el historial en carril
 - Búsqueda instantánea por ciudad, sala, año o título
 - Vista de grabación con lista de temas, duraciones y descripción
 - Cola de reproducción, saltando a cualquier pista con un clic
@@ -139,7 +166,7 @@ Dos medidas no son negociables en el teléfono, y las dos son de Safari iOS:
 - Me gusta, historial y volumen persistentes en `localStorage`
 - La sesión se restaura al recargar: misma cola, misma pista, mismo segundo
 - Estados de carga (*skeletons*), de error y de vacío
-- Mobile first, de 320 px a escritorio, con barra de pestañas en el teléfono
+- Mobile first, de 320 px a escritorio, con el buscador fijo en el borde inferior
 - Pantalla completa de reproducción al pulsar la barra inferior (ver abajo)
 - Service worker que cachea sólo el *app shell*, y con la red por delante:
   nunca el audio, para no romper las peticiones `Range` que necesita el
@@ -218,15 +245,16 @@ Y abre `http://localhost:8000`.
 
 `test/e2e.js` levanta la app en un Chromium sin cabeza, simula las respuestas
 de archive.org (búsqueda, metadatos, carátulas y un WAV sintético) y verifica
-72 escenarios: reproducción, avance automático, continuidad con la pestaña
-oculta, metadatos de Media Session, cola, persistencia, búsqueda, estado de
-error, pantalla completa y abreviatura del nombre.
+85 escenarios: publicaciones y sus filtros, reproducción, avance automático,
+continuidad con la pestaña oculta, metadatos de Media Session, cola,
+persistencia, búsqueda, estado de error, pantalla completa, el carril
+horizontal del historial y la abreviatura del nombre.
 
 La parte responsive recorre seis anchos (320 · 390 · 576 · 768 · 896 · 1440) y
-en cada uno comprueba en ambos sentidos qué debe verse y qué no: exactamente
-una navegación (lateral **o** pestañas, nunca las dos ni ninguna), exactamente
-un botón de reproducción, el estado del carril de iconos y que no haya
-desbordamiento horizontal.
+en cada uno comprueba en ambos sentidos qué debe verse y qué no: la barra
+lateral sólo desde 768 px, el buscador pegado al borde inferior y sin que el
+reproductor lo tape, exactamente un botón de reproducción, el estado del carril
+de iconos y que no haya desbordamiento horizontal.
 
 ```bash
 npm i -D playwright && npx playwright install chromium

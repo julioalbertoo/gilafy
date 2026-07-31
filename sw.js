@@ -4,7 +4,7 @@
    elemento <audio> deben llegar intactas al servidor, o el desplazamiento
    dentro de la pista dejaría de funcionar. */
 
-const CACHE = 'gilafy-v2';
+const CACHE = 'gilafy-v3';
 const SHELL = [
   './',
   './index.html',

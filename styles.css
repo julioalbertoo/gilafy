@@ -57,12 +57,12 @@
   --player-h: 64px;
 
   /* Zona que el sistema se reserva abajo (indicador de inicio de iOS). Va
-     sumada a la altura de la barra de pestañas, no descontada de ella: con
-     `box-sizing: border-box` un `padding-bottom` suelto se la comería a las
-     etiquetas. Al vivir dentro de --tabbar-h, todo lo que se apila encima
+     sumada a la altura del buscador, no descontada de ella: con
+     `box-sizing: border-box` un `padding-bottom` suelto se la comería al
+     campo. Al vivir dentro de --searchbar-h, todo lo que se apila encima
      —reproductor, cola, aviso y el alto de .app— se aparta ya por su cuenta. */
-  --safe-b:   env(safe-area-inset-bottom, 0px);
-  --tabbar-h: calc(60px + var(--safe-b));
+  --safe-b:      env(safe-area-inset-bottom, 0px);
+  --searchbar-h: calc(64px + var(--safe-b));
 
   /* Tipografía: la familia propietaria de Spotify no es pública, así que
      replicamos la voz con la misma pila de reserva del sistema. */
@@ -121,10 +121,11 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   grid-template-columns: minmax(0, 1fr);
   gap: var(--gap);
   padding: var(--gap);
-  height: calc(100dvh - var(--player-h) - var(--tabbar-h));
+  height: calc(100dvh - var(--player-h) - var(--searchbar-h));
 }
 
-/* En el teléfono se navega con la barra de pestañas inferior. */
+/* En el teléfono no hay barra lateral: se navega con el buscador de abajo,
+   el chevrón de atrás y el atajo a la biblioteca de la cabecera. */
 .sidebar { display: none; }
 
 .main {
@@ -143,19 +144,30 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .view:focus { outline: none; }
 
 /* ── Barra superior ───────────────────────────────────────── */
+/* Ya no flota sobre el contenido: es una cabecera con el título de la vista,
+   como la de «Publicaciones» de la app original. */
 .topbar {
-  position: absolute; inset: 0 0 auto 0; z-index: 5;
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 12px;
-  background: transparent;
-  transition: background .2s ease;
+  position: relative; z-index: 5; flex: none;
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center; gap: 8px;
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 8px 8px;
+  background: var(--bg-base);
+  transition: box-shadow .2s ease;
 }
-.topbar.is-stuck { background: rgba(18,18,18,.85); backdrop-filter: blur(12px); }
+.topbar.is-stuck { box-shadow: 0 4px 12px rgba(0,0,0,.5); }
 
-/* Atrás/adelante y la cabecera derecha son de escritorio: en móvil
-   se navega con los gestos del sistema y la barra de pestañas. */
-.topbar__nav, .topbar__right { display: none; }
-.topbar__right { align-items: center; gap: 12px; }
+.topbar__title {
+  font-family: var(--font-title);
+  font-size: 18px; font-weight: 700; letter-spacing: -.01em;
+  margin: 0; text-align: center;
+}
+
+/* Adelante y el enlace a la fuente son de escritorio; atrás y el atajo a la
+   biblioteca se quedan en el teléfono, que ya no tiene barra de pestañas. */
+.topbar__nav { display: flex; }
+#navFwd, .topbar .pill { display: none; }
+.topbar__nav .icon-btn { color: var(--text-base); }
+.topbar__right { display: flex; align-items: center; gap: 12px; }
 
 .search { position: relative; flex: 1; min-width: 0; }
 .search__icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
@@ -184,6 +196,8 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   display: grid; place-items: center;
   font-size: 12px; font-weight: 700;
 }
+a.avatar:hover { background: var(--bg-card-alt); color: var(--text-base); text-decoration: none; }
+a.avatar.is-active { background: var(--text-base); color: #000; }
 
 /* ── Barra lateral (visible desde 768px) ──────────────────── */
 .sidebar__brand {
@@ -321,7 +335,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 
 /* ── Cabecera de sección ──────────────────────────────────── */
 .hero {
-  padding: 64px var(--pad) 16px;
+  padding: 24px var(--pad) 16px;
   background: linear-gradient(180deg, var(--hero) 0%, color-mix(in srgb, var(--hero) 45%, var(--bg-base)) 60%, var(--bg-base) 100%);
 }
 .hero--home { padding-bottom: 8px; }
@@ -412,18 +426,78 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .card__sub { font-size: 14px; font-weight: 400; color: var(--text-muted); margin: 0; line-height: 1.4;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-/* Tiles rápidos de la portada */
-.quick { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 0 var(--pad) 8px; }
-.quick__item {
-  display: flex; align-items: center; gap: 16px;
-  background: rgba(255,255,255,.08);
-  border-radius: var(--r-sm);
-  overflow: hidden; text-align: left;
+/* ── Publicaciones ────────────────────────────────────────── */
+/* Filtros por tipo, en una fila que se desplaza en horizontal. */
+.filters {
+  display: flex; gap: 8px;
+  padding: 12px var(--pad);
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-padding-inline: var(--pad);
+}
+.filters::-webkit-scrollbar { display: none; }
+.filter {
+  flex: none;
+  background: var(--bg-mid); color: var(--text-base);
+  font-size: 14px; font-weight: 400;
+  padding: 9px 16px; border-radius: var(--r-full);
+  white-space: nowrap;
   transition: background .15s ease;
 }
-.quick__item:hover { background: rgba(255,255,255,.16); text-decoration: none; }
-.quick__art { width: 64px; height: 64px; flex: none; object-fit: cover; background: var(--bg-card); }
-.quick__name { font-size: 14px; font-weight: 700; padding-right: 12px; min-width: 0; }
+.filter:hover { background: #2a2a2a; }
+.filter.is-on { background: var(--text-base); color: #000; font-weight: 700; }
+
+/* Filas de publicación: carátula, título en dos líneas y «Tipo · Año». */
+.pubs { padding: 0 var(--pad) 20px; }
+.pub {
+  position: relative;
+  display: grid; grid-template-columns: 76px minmax(0, 1fr) 40px;
+  align-items: center; gap: 14px;
+  padding: 8px 0;
+  width: 100%; text-align: left;
+  border-radius: var(--r-sm);
+  transition: background .15s ease;
+}
+.pub:hover { text-decoration: none; }
+/* Capa de enlace sobre toda la fila: deja el play por encima, con su z-index. */
+.pub__open { position: absolute; inset: 0; z-index: 0; border-radius: inherit; }
+.pub__art, .pub__cell { position: relative; z-index: 1; pointer-events: none; }
+.pub__play { position: relative; z-index: 2; }
+.pub__art {
+  width: 76px; height: 76px; flex: none;
+  border-radius: var(--r-sm);
+  object-fit: cover; background: var(--bg-card);
+}
+.pub__cell { min-width: 0; }
+.pub__title {
+  font-size: 16px; font-weight: 400; line-height: 1.3; margin: 0;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.pub__meta { font-size: 13px; color: var(--text-muted); margin: 6px 0 0; }
+.pub.is-playing .pub__title { color: var(--green); }
+.pub__play {
+  justify-self: end;
+  width: 36px; height: 36px; border-radius: 50%;
+  color: var(--text-muted);
+  display: grid; place-items: center;
+  transition: color .12s ease, transform .12s ease;
+}
+.pub__play:hover { color: var(--text-base); transform: scale(1.08); }
+
+/* ── Carril horizontal (Escuchado recientemente) ──────────── */
+/* Desplazamiento lateral con anclaje, como los carruseles de la app real. */
+.rail {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 150px;
+  gap: 12px;
+  padding: 0 var(--pad) 8px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: var(--pad);
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.rail::-webkit-scrollbar { display: none; }
+.rail > .card { scroll-snap-align: start; }
 
 /* ── Lista de pistas ──────────────────────────────────────── */
 .tracks { padding: 0 8px 24px; }
@@ -460,7 +534,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 @keyframes eq { 0%,100% { transform: scaleY(.35); } 50% { transform: scaleY(1); } }
 
 /* ── Estados ──────────────────────────────────────────────── */
-.state { padding: 96px var(--pad) 24px; text-align: center; color: var(--text-muted); }
+.state { padding: 48px var(--pad) 24px; text-align: center; color: var(--text-muted); }
 .state__title { font-family: var(--font-title); font-size: 24px; font-weight: 700; color: var(--text-base); margin: 0 0 8px; overflow-wrap: anywhere; }
 .state__body { font-size: 14px; line-height: 1.6; max-width: 46ch; margin: 0 auto 20px; }
 .state--error .state__title { color: var(--text-negative); }
@@ -468,13 +542,15 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .skeleton { background: linear-gradient(90deg, var(--bg-mid) 25%, var(--bg-card) 37%, var(--bg-mid) 63%); background-size: 400% 100%; animation: shimmer 1.3s linear infinite; border-radius: var(--r-md); }
 @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
 .sk-card { height: 236px; }
+.sk-filter { height: 38px; width: 110px; flex: none; border-radius: var(--r-full); }
+.sk-pub { height: 76px; margin-bottom: 16px; }
 
 /* ── Cola ─────────────────────────────────────────────────── */
 /* En móvil y tablet es una capa flotante; desde 1024px, una columna. */
 .queue {
   position: fixed;
   left: 8px; right: 8px; top: 8px;
-  bottom: calc(var(--player-h) + var(--tabbar-h) + 8px);
+  bottom: calc(var(--player-h) + var(--searchbar-h) + 8px);
   z-index: 30;
   background: var(--bg-surface);
   border-radius: var(--r-lg);
@@ -501,7 +577,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 /* Compacta: carátula + título, play y cola. El progreso es una línea fina
    pegada al borde inferior. La barra se mantiene en todos los tamaños. */
 .player {
-  position: fixed; inset: auto 0 var(--tabbar-h) 0; z-index: 20;
+  position: fixed; inset: auto 0 var(--searchbar-h) 0; z-index: 20;
   height: var(--player-h);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -553,18 +629,19 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .mobile-play { display: grid; background: transparent; color: var(--text-base); width: 40px; height: 40px; }
 .range--vol, #btnMute { display: none; }   /* el volumen lo lleva el sistema */
 
-/* ── Barra de pestañas ────────────────────────────────────── */
-.tabbar {
+/* ── Buscador fijo abajo ──────────────────────────────────── */
+/* Sustituye a la antigua barra de pestañas: mismo sitio, misma altura de
+   token. La zona segura va en el `padding-bottom`, dentro de --searchbar-h,
+   así que el campo conserva sus 48px pase lo que pase con el indicador. */
+.searchbar {
   position: fixed; inset: auto 0 0 0; z-index: 25;
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  height: var(--tabbar-h);
+  height: var(--searchbar-h);
+  display: flex; align-items: center;
+  padding: 8px 12px calc(8px + var(--safe-b));
   background: linear-gradient(180deg, #121212, #000 60%);
   border-top: 1px solid rgba(255,255,255,.06);
-  padding-bottom: var(--safe-b);
 }
-.tabbar__item { display: grid; place-items: center; gap: 2px; color: var(--text-muted); font-size: 10px; }
-.tabbar__item:hover { text-decoration: none; }
-.tabbar__item.is-active { color: var(--text-base); font-weight: 700; }
+.searchbar .search { width: 100%; }
 
 /* ── Reproduciendo ahora, a pantalla completa ─────────────── */
 /* Se abre al pulsar la barra inferior. Cubre todo, incluida la barra de
@@ -679,7 +756,7 @@ body.is-np-open { overflow: hidden; }
 
 /* ── Toast ────────────────────────────────────────────────── */
 .toast {
-  position: fixed; left: 50%; bottom: calc(var(--player-h) + var(--tabbar-h) + 16px);
+  position: fixed; left: 50%; bottom: calc(var(--player-h) + var(--searchbar-h) + 16px);
   transform: translateX(-50%);
   z-index: 40;
   background: var(--text-base); color: #000;
@@ -694,7 +771,7 @@ body.is-np-open { overflow: hidden; }
    ════════════════════════════════════════════════════════════ */
 @media (min-width: 576px) {
   .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
-  .quick { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  .rail { grid-auto-columns: 170px; gap: 16px; }
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -706,32 +783,32 @@ body.is-np-open { overflow: hidden; }
     --gap: 8px;
     --pad: 24px;
     --sidebar: 88px;
-    /* Sin barra de pestañas, es el reproductor quien queda pegado al borde
-       inferior: la reserva del sistema pasa a sumarse a su altura. */
-    --player-h: calc(90px + var(--safe-b));
-    --tabbar-h: 0px;
+    --player-h: 90px;
   }
 
-  .app {
-    grid-template-columns: var(--sidebar) minmax(0, 1fr);
-    height: calc(100dvh - var(--player-h));
-  }
+  .app { grid-template-columns: var(--sidebar) minmax(0, 1fr); }
 
   .sidebar { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
   .main { border-radius: var(--r-lg); }
-  .tabbar { display: none; }
+
+  /* El buscador deja de ocupar todo el ancho: una píldora centrada. */
+  .searchbar { padding: 10px 16px calc(10px + var(--safe-b)); }
+  .searchbar .search { max-width: 520px; margin: 0 auto; }
 
   /* Carril estrecho: sólo iconos hasta 896px. */
   .brand__name, .nav__item span, .panel__title, .chips, .shelf__text, .sidebar__legal { display: none; }
   .sidebar__brand, .nav, .panel__head, .nav__item { justify-content: center; }
   .shelf__item { justify-content: center; padding: 6px; }
 
-  .topbar { padding: 12px var(--pad); gap: 16px; }
-  .topbar__nav { display: flex; gap: 8px; }
-  .topbar__right { display: flex; margin-left: auto; }
-  .search { max-width: 420px; }
+  .topbar { grid-template-columns: 88px minmax(0, 1fr) auto; padding: 12px var(--pad); gap: 16px; }
+  .topbar__nav { gap: 8px; }
+  .topbar__nav .icon-btn { background: rgba(0,0,0,.7); }
+  .topbar__nav .icon-btn:hover { background: rgba(0,0,0,.85); }
+  #navFwd, .topbar .pill { display: inline-flex; }
+  #navFwd { display: grid; }
+  .topbar__title { font-size: 20px; text-align: left; }
 
-  .hero { padding: 80px var(--pad) 24px; }
+  .hero { padding: 32px var(--pad) 24px; }
   .hero__row { flex-direction: row; align-items: flex-end; gap: 24px; }
   .hero__art { width: 150px; height: 150px; }
   .hero__title { font-size: clamp(32px, 5vw, 72px); }
@@ -752,16 +829,19 @@ body.is-np-open { overflow: hidden; }
   .tracks__head span:first-child, .tracks__head span:last-child { text-align: right; }
   .track { grid-template-columns: 32px minmax(0, 1fr) 56px; gap: 16px; }
 
+  .pubs { max-width: 900px; }
+  .pub { padding: 8px; }
+  .pub:hover { background: rgba(255,255,255,.06); }
+
   /* El ratón puede apuntar: el play de la tarjeta aparece al pasar por encima. */
   .card__play { opacity: 0; transform: translateY(8px); }
   .card:hover .card__play, .card:focus-within .card__play { opacity: 1; transform: translateY(0); }
 
   /* Reproductor completo en tres zonas. */
   .player {
-    inset: auto 0 0 0;
     grid-template-columns: minmax(180px, 30%) minmax(0, 1fr) minmax(180px, 30%);
     gap: 16px;
-    padding: 0 16px var(--safe-b);
+    padding: 0 16px;
   }
   .np__art { width: 56px; height: 56px; }
   .player__now { gap: 14px; }
@@ -779,8 +859,7 @@ body.is-np-open { overflow: hidden; }
   .range--vol { display: block; flex: 0 0 96px; max-width: 96px; }
   #btnMute { display: grid; }
 
-  .queue { bottom: calc(var(--player-h) + 8px); left: auto; width: 300px; right: 8px; }
-  .toast { bottom: calc(var(--player-h) + 16px); }
+  .queue { left: auto; width: 300px; right: 8px; }
 }
 
 /* ════════════════════════════════════════════════════════════
