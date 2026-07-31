@@ -34,9 +34,19 @@ expresamente grabar sus conciertos y redistribuirlos sin ánimo de lucro, y esas
 grabaciones viven en Internet Archive. Es material genuinamente libre, así que
 Gilafy lo consulta y lo reproduce directamente desde allí.
 
-Los álbumes de estudio comerciales **no** están aquí — no son de dominio
-público y la app no los busca ni los aloja. Todo el audio se transmite desde
-`archive.org`; este repositorio no contiene ni un solo byte de música.
+De estudio hay exactamente uno: **Polygondwanaland** (2017), que la banda
+publicó con los másters y la portada descargables y permiso expreso para
+copiarlo, prensarlo y venderlo — *«We do not own this record. You do»*.
+Decenas de sellos lo prensaron. Entra por derecho propio, marcado como
+`Estudio`, y sale de una búsqueda dirigida por título: de las varias subidas
+que suele haber en el archivo se conserva la más descargada.
+
+El resto del catálogo de estudio es comercial y **no** está aquí: no se busca
+ni se enlaza, aunque haya subidas de terceros en el archivo. Añadir un disco
+liberado nuevo es una línea en `FREE_STUDIO`.
+
+Todo el audio se transmite desde `archive.org`; este repositorio no contiene ni
+un solo byte de música.
 
 El identificador exacto de la colección ha cambiado alguna vez, así que
 `app.js` prueba varias consultas en orden (colección, luego `creator`, luego
@@ -109,7 +119,7 @@ que usa la app original.
 
 ## Funcionalidad
 
-- Portada con novedades, más escuchados, mejor valorados e historial
+- Portada con estudio liberado, novedades, más escuchados, valorados e historial
 - Búsqueda instantánea por ciudad, sala, año o título
 - Vista de grabación con lista de temas, duraciones y descripción
 - Cola de reproducción, saltando a cualquier pista con un clic
@@ -196,7 +206,7 @@ Y abre `http://localhost:8000`.
 
 `test/e2e.js` levanta la app en un Chromium sin cabeza, simula las respuestas
 de archive.org (búsqueda, metadatos, carátulas y un WAV sintético) y verifica
-70 escenarios: reproducción, avance automático, continuidad con la pestaña
+72 escenarios: reproducción, avance automático, continuidad con la pestaña
 oculta, metadatos de Media Session, cola, persistencia, búsqueda, estado de
 error, pantalla completa y abreviatura del nombre.
 

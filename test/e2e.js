@@ -52,6 +52,15 @@ const SHOWS = [
 
 const TITLES = ['Rattlesnake', 'Robot Stop', 'The River', 'Crumbling Castle'];
 
+/* El archivo suele tener varias subidas del mismo disco liberado; la app debe
+ * quedarse con una sola, la más descargada. El tercero es un directo que sólo
+ * menciona el título y no debe colarse como álbum de estudio. */
+const STUDIO = [
+  { identifier: 'polygondwanaland-flac', title: 'King Gizzard & The Lizard Wizard - Polygondwanaland', creator: 'King Gizzard & The Lizard Wizard', year: '2017', date: '2017-11-17T00:00:00Z', downloads: 4000, avg_rating: '5.0' },
+  { identifier: 'Polygondwanaland_mp3', title: 'Polygondwanaland (free release)', creator: 'King Gizzard & The Lizard Wizard', year: '2017', date: '2017-11-20T00:00:00Z', downloads: 91000, avg_rating: '4.8' },
+  { identifier: 'kglw-otro-directo', title: 'KGLW Live in Utrecht', creator: 'King Gizzard & The Lizard Wizard', year: '2019', date: '2019-05-05T00:00:00Z', downloads: 500, avg_rating: '4.0' },
+];
+
 /** Cada tema aparece en tres formatos, como en el archivo real: la app debe
  *  quedarse con un único derivado reproducible por pista. */
 function metaFor(id) {
@@ -91,6 +100,12 @@ const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
   'base64');
 
+/* La versión de los datos guardados se lee del código, no se fija a mano:
+   así las comprobaciones de caché no se desfasan cuando sube. */
+const DATA_VERSION = Number(
+  fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8').match(/const DATA_VERSION = (\d+)/)?.[1]);
+if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
+
 /* ── Ejecución ─────────────────────────────────────────────── */
 
 (async () => {
@@ -107,7 +122,10 @@ const PNG = Buffer.from(
   await ctx.route('**/archive.org/**', async (route) => {
     const url = route.request().url();
     if (url.includes('advancedsearch.php')) {
-      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ response: { numFound: SHOWS.length, docs: SHOWS } }) });
+      // La consulta de estudio es distinta de la del catálogo en directo.
+      const studio = /polygondwanaland/i.test(decodeURIComponent(url));
+      const docs = studio ? STUDIO : SHOWS;
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ response: { numFound: docs.length, docs } }) });
     }
     if (url.includes('/metadata/')) {
       const id = decodeURIComponent(url.split('/metadata/')[1].split('?')[0]);
@@ -139,7 +157,32 @@ const PNG = Buffer.from(
   await step('el catálogo llega a la estantería', async () => {
     await page.waitForSelector('.shelf__item', { timeout: 8000 });
     const n = await page.locator('.shelf__item').count();
-    if (n !== SHOWS.length) throw new Error(`esperaba ${SHOWS.length} items, hay ${n}`);
+    // Los directos más el único álbum de estudio que sobrevive a la criba.
+    if (n !== SHOWS.length + 1) throw new Error(`esperaba ${SHOWS.length + 1} items, hay ${n}`);
+  });
+
+  await step('el disco liberado aparece, deduplicado y etiquetado', async () => {
+    const row = page.locator('.section', { hasText: 'Estudio, liberado por la banda' });
+    await row.waitFor({ timeout: 6000 });
+    const cards = row.locator('.card');
+    if (await cards.count() !== 1) throw new Error(`${await cards.count()} copias del mismo álbum`);
+    const text = await cards.first().innerText();
+    if (!text.includes('Polygondwanaland')) throw new Error(`tarjeta: ${text.trim()}`);
+    if (!text.includes('ESTUDIO') && !text.includes('Estudio')) throw new Error('sin distintivo de estudio');
+    // Debe elegir la copia más descargada.
+    const href = await cards.first().locator('a').first().getAttribute('href');
+    if (!href.includes('Polygondwanaland_mp3')) throw new Error(`eligió ${href}, no la más descargada`);
+  });
+
+  await step('un directo que cita el título no cuenta como estudio', async () => {
+    // El mismo álbum sale en varias filas; lo que importa es que todo lo
+    // marcado sea el disco liberado y nada más.
+    const marcadas = await page.locator('.card:has(.card__badge) .card__title').allTextContents();
+    if (!marcadas.length) throw new Error('ninguna tarjeta marcada');
+    const intrusas = marcadas.filter((t) => !t.includes('Polygondwanaland'));
+    if (intrusas.length) throw new Error(`marcadas como estudio: ${intrusas.join(' | ')}`);
+    const body = await page.locator('body').innerText();
+    if (body.includes('Utrecht')) throw new Error('se coló un directo en la búsqueda de estudio');
   });
   await step('secciones de la portada', async () => {
     const titles = await page.locator('.section__title').allTextContents();
@@ -364,9 +407,9 @@ const PNG = Buffer.from(
      * el nombre largo —por ejemplo porque el navegador sirvió un app.js
      * anterior desde su propia caché— no debe llegar así a la pantalla. */
     const p5 = await ctx.newPage();
-    await p5.addInitScript(() => {
+    await p5.addInitScript((version) => {
       localStorage.setItem('gilafy.catalog', JSON.stringify({
-        v: 2, ts: Date.now(),
+        v: version, ts: Date.now(),
         docs: [{
           id: 'largo', title: 'King Gizzard & The Lizard Wizard Live at Anthem',
           creator: 'King Gizzard and the Lizard Wizard', date: '2022-10-23T00:00:00Z',
@@ -374,7 +417,7 @@ const PNG = Buffer.from(
           art: 'https://archive.org/services/img/largo',
         }],
       }));
-    });
+    }, DATA_VERSION);
     await p5.goto(url, { waitUntil: 'networkidle' });
     await p5.waitForSelector('.card', { timeout: 8000 });
     const body = await p5.locator('body').innerText();
