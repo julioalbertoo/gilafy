@@ -3,6 +3,9 @@
 Una réplica de la interfaz de Spotify que reproduce **el material público de
 King Gizzard & The Lizard Wizard**, servido en directo desde Internet Archive.
 
+**▶ En vivo: <https://julioalbertoo.github.io/gilafy/>**
+(requiere activar Pages una vez — ver [Despliegue](#despliegue))
+
 Sin dependencias, sin build, sin claves de API: son ficheros estáticos. Abre
 `index.html` desde cualquier servidor web y funciona.
 
@@ -101,7 +104,21 @@ que usa la app original.
 | `S` / `R` | Aleatorio / repetición |
 | `/` | Enfocar la búsqueda |
 
-## Ejecutar
+## Despliegue
+
+`.github/workflows/pages.yml` publica la app en GitHub Pages en cada push a
+`main`. Hace falta activarlo **una sola vez**, porque el `GITHUB_TOKEN` de
+Actions no tiene permiso para crear el sitio por sí mismo:
+
+1. **Ajustes → Pages → Build and deployment → Source: _GitHub Actions_**
+2. Si Actions está en sólo lectura, **Ajustes → Actions → General → Workflow
+   permissions: _Read and write permissions_**
+3. Vuelve a lanzar el workflow (pestaña Actions → *Re-run all jobs*), o
+   simplemente haz otro push.
+
+A partir de ahí queda en <https://julioalbertoo.github.io/gilafy/>.
+
+## Ejecutar en local
 
 Hace falta un servidor: `file://` bloquea el service worker y algunas
 peticiones. Cualquiera sirve.
@@ -136,6 +153,7 @@ app.js       Datos, enrutado, vistas y motor de reproducción
 sw.js        Cache del app shell (excluye archive.org)
 manifest.json + icon*.svg   Instalación como PWA
 test/e2e.js  Comprobaciones de extremo a extremo
+.github/workflows/pages.yml   Despliegue a GitHub Pages en cada push a main
 ```
 
 ## Aviso

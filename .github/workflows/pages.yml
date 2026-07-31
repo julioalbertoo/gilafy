@@ -21,8 +21,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # `enablement: true` da de alta Pages por API si aún no lo está,
-      # de modo que el primer despliegue no necesita tocar Ajustes.
+      # Requiere que Pages esté activado una vez en
+      # Ajustes → Pages → Source: GitHub Actions. `enablement: true` intenta
+      # darlo de alta por API, pero GITHUB_TOKEN no siempre puede crear el
+      # sitio ("Resource not accessible by integration"); en ese caso el paso
+      # de arriba es el que desbloquea el despliegue.
       - uses: actions/configure-pages@v5
         with:
           enablement: true
