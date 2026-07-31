@@ -15,8 +15,10 @@ coincidir literalmente.
 Ojo con lo que se guarda: el catálogo y la sesión van a `localStorage` **ya
 procesados**, así que cambiar cómo se derivan no basta — las copias viejas
 seguirían pintándose hasta caducar. Por eso llevan una `DATA_VERSION` que las
-invalida. Las preferencias (me gusta, historial, volumen) no la llevan y
-sobreviven a los cambios.
+invalida, y además se vuelven a pasar por el acortador **al leerlas**: la
+versión sola no protege si el navegador arrastra un `app.js` anterior desde su
+propia caché. Las preferencias (me gusta, historial, volumen) no llevan
+versión y sobreviven a los cambios.
 
 **▶ En vivo: <https://julioalbertoo.github.io/gilafy/>**
 
@@ -121,6 +123,8 @@ que usa la app original.
   nunca el audio, para no romper las peticiones `Range` que necesita el
   desplazamiento dentro del tema, y nunca por delante de la red, para no
   servir siempre la versión del despliegue anterior
+- La app se recarga sola cuando llega una versión nueva — salvo si hay algo
+  sonando, que entonces espera a la siguiente visita
 
 ### Pantalla completa de reproducción
 
@@ -192,7 +196,7 @@ Y abre `http://localhost:8000`.
 
 `test/e2e.js` levanta la app en un Chromium sin cabeza, simula las respuestas
 de archive.org (búsqueda, metadatos, carátulas y un WAV sintético) y verifica
-69 escenarios: reproducción, avance automático, continuidad con la pestaña
+70 escenarios: reproducción, avance automático, continuidad con la pestaña
 oculta, metadatos de Media Session, cola, persistencia, búsqueda, estado de
 error, pantalla completa y abreviatura del nombre.
 

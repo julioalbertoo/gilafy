@@ -359,6 +359,32 @@ const PNG = Buffer.from(
     await p4.close();
   });
 
+  await step('una caché con nombres largos se abrevia igualmente al pintar', async () => {
+    /* Red de seguridad: aunque la copia lleve la versión correcta, si arrastra
+     * el nombre largo —por ejemplo porque el navegador sirvió un app.js
+     * anterior desde su propia caché— no debe llegar así a la pantalla. */
+    const p5 = await ctx.newPage();
+    await p5.addInitScript(() => {
+      localStorage.setItem('gilafy.catalog', JSON.stringify({
+        v: 2, ts: Date.now(),
+        docs: [{
+          id: 'largo', title: 'King Gizzard & The Lizard Wizard Live at Anthem',
+          creator: 'King Gizzard and the Lizard Wizard', date: '2022-10-23T00:00:00Z',
+          year: '2022', place: 'Washington, DC', downloads: 1, rating: 5,
+          art: 'https://archive.org/services/img/largo',
+        }],
+      }));
+    });
+    await p5.goto(url, { waitUntil: 'networkidle' });
+    await p5.waitForSelector('.card', { timeout: 8000 });
+    const body = await p5.locator('body').innerText();
+    if (/King\s*Gizzard/i.test(body)) {
+      throw new Error(`se pintó el nombre largo: «${body.match(/.{0,50}King\s*Gizzard.{0,30}/i)[0].trim()}»`);
+    }
+    if (!body.includes('KGLW Live at Anthem')) throw new Error('no se usó la copia guardada');
+    await p5.close();
+  });
+
   await step('estado de error, en español, si el archivo no responde', async () => {
     const p2 = await ctx.newPage();
     await p2.route('**/archive.org/**', (r) => r.abort());
