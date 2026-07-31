@@ -1,0 +1,6 @@
+# La app no tiene dependencias ni build: son ficheros estáticos. Lo de aquí
+# abajo lo genera el `npm i -D playwright` puntual que pide el README para
+# poder ejecutar test/e2e.js, y no forma parte del proyecto.
+node_modules/
+package.json
+package-lock.json
