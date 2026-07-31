@@ -54,15 +54,14 @@
   --gap:      0px;
   --pad:      16px;
   --sidebar:  0px;
-  --player-h: 64px;
 
   /* Zona que el sistema se reserva abajo (indicador de inicio de iOS). Va
-     sumada a la altura del buscador, no descontada de ella: con
-     `box-sizing: border-box` un `padding-bottom` suelto se la comería al
-     campo. Al vivir dentro de --searchbar-h, todo lo que se apila encima
-     —reproductor, cola, aviso y el alto de .app— se aparta ya por su cuenta. */
-  --safe-b:      env(safe-area-inset-bottom, 0px);
-  --searchbar-h: calc(64px + var(--safe-b));
+     sumada a la altura del reproductor, que es lo que queda pegado al borde,
+     no descontada de ella: con `box-sizing: border-box` un `padding-bottom`
+     suelto se la comería a los controles. Al vivir dentro de --player-h, todo
+     lo que se apila encima —cola, aviso y el alto de .app— se aparta solo. */
+  --safe-b:   env(safe-area-inset-bottom, 0px);
+  --player-h: calc(64px + var(--safe-b));
 
   /* Tipografía: la familia propietaria de Spotify no es pública, así que
      replicamos la voz con la misma pila de reserva del sistema. */
@@ -121,10 +120,10 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   grid-template-columns: minmax(0, 1fr);
   gap: var(--gap);
   padding: var(--gap);
-  height: calc(100dvh - var(--player-h) - var(--searchbar-h));
+  height: calc(100dvh - var(--player-h));
 }
 
-/* En el teléfono no hay barra lateral: se navega con el buscador de abajo,
+/* En el teléfono no hay barra lateral: se navega con el buscador de arriba,
    el chevrón de atrás y el atajo a la biblioteca de la cabecera. */
 .sidebar { display: none; }
 
@@ -154,7 +153,6 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   background: var(--bg-base);
   transition: box-shadow .2s ease;
 }
-.topbar.is-stuck { box-shadow: 0 4px 12px rgba(0,0,0,.5); }
 
 .topbar__title {
   font-family: var(--font-title);
@@ -553,7 +551,7 @@ a.avatar.is-active { background: var(--text-base); color: #000; }
 .queue {
   position: fixed;
   left: 8px; right: 8px; top: 8px;
-  bottom: calc(var(--player-h) + var(--searchbar-h) + 8px);
+  bottom: calc(var(--player-h) + 8px);
   z-index: 30;
   background: var(--bg-surface);
   border-radius: var(--r-lg);
@@ -580,13 +578,13 @@ a.avatar.is-active { background: var(--text-base); color: #000; }
 /* Compacta: carátula + título, play y cola. El progreso es una línea fina
    pegada al borde inferior. La barra se mantiene en todos los tamaños. */
 .player {
-  position: fixed; inset: auto 0 var(--searchbar-h) 0; z-index: 20;
+  position: fixed; inset: auto 0 0 0; z-index: 20;
   height: var(--player-h);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  padding: 0 8px 0 12px;
+  padding: 0 8px var(--safe-b) 12px;
   background: #000;
 }
 
@@ -603,7 +601,7 @@ a.avatar.is-active { background: var(--text-base); color: #000; }
 .np__sub:hover { color: var(--text-base); }
 
 .player__center {
-  position: absolute; inset: auto 0 0 0;
+  position: absolute; inset: auto 0 var(--safe-b) 0;
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   min-width: 0; width: 100%;
 }
@@ -632,19 +630,19 @@ a.avatar.is-active { background: var(--text-base); color: #000; }
 .mobile-play { display: grid; background: transparent; color: var(--text-base); width: 40px; height: 40px; }
 .range--vol, #btnMute { display: none; }   /* el volumen lo lleva el sistema */
 
-/* ── Buscador fijo abajo ──────────────────────────────────── */
-/* Sustituye a la antigua barra de pestañas: mismo sitio, misma altura de
-   token. La zona segura va en el `padding-bottom`, dentro de --searchbar-h,
-   así que el campo conserva sus 48px pase lo que pase con el indicador. */
+/* ── Buscador ─────────────────────────────────────────────── */
+/* Justo debajo de la cabecera y fuera de #view, que es el único elemento que
+   se desplaza: así se queda fijo arriba sin necesidad de `position: sticky`. */
 .searchbar {
-  position: fixed; inset: auto 0 0 0; z-index: 25;
-  height: var(--searchbar-h);
+  flex: none; z-index: 4;
   display: flex; align-items: center;
-  padding: 8px 12px calc(8px + var(--safe-b));
-  background: linear-gradient(180deg, #121212, #000 60%);
-  border-top: 1px solid rgba(255,255,255,.06);
+  padding: 0 12px 10px;
+  background: var(--bg-base);
 }
 .searchbar .search { width: 100%; }
+/* Al desplazar, la sombra la pinta el buscador: es el último elemento de la
+   cabecera fija y el que queda pegado al contenido que pasa por debajo. */
+.topbar.is-stuck + .searchbar { box-shadow: 0 6px 12px rgba(0,0,0,.45); }
 
 /* ── Reproduciendo ahora, a pantalla completa ─────────────── */
 /* Se abre al pulsar la barra inferior. Cubre todo, incluida la barra de
@@ -765,7 +763,7 @@ body.is-np-open { overflow: hidden; }
 
 /* ── Toast ────────────────────────────────────────────────── */
 .toast {
-  position: fixed; left: 50%; bottom: calc(var(--player-h) + var(--searchbar-h) + 16px);
+  position: fixed; left: 50%; bottom: calc(var(--player-h) + 16px);
   transform: translateX(-50%);
   z-index: 40;
   background: var(--text-base); color: #000;
@@ -792,7 +790,7 @@ body.is-np-open { overflow: hidden; }
     --gap: 8px;
     --pad: 24px;
     --sidebar: 88px;
-    --player-h: 90px;
+    --player-h: calc(90px + var(--safe-b));
   }
 
   .app { grid-template-columns: var(--sidebar) minmax(0, 1fr); }
@@ -800,9 +798,10 @@ body.is-np-open { overflow: hidden; }
   .sidebar { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
   .main { border-radius: var(--r-lg); }
 
-  /* El buscador deja de ocupar todo el ancho: una píldora centrada. */
-  .searchbar { padding: 10px 16px calc(10px + var(--safe-b)); }
-  .searchbar .search { max-width: 520px; margin: 0 auto; }
+  /* El buscador deja de ocupar todo el ancho: una píldora a la izquierda,
+     alineada con el contenido. */
+  .searchbar { padding: 0 var(--pad) 12px; }
+  .searchbar .search { max-width: 420px; }
 
   /* Carril estrecho: sólo iconos hasta 896px. */
   .brand__name, .nav__item span, .panel__title, .chips, .shelf__text, .sidebar__legal { display: none; }
@@ -850,7 +849,7 @@ body.is-np-open { overflow: hidden; }
   .player {
     grid-template-columns: minmax(180px, 30%) minmax(0, 1fr) minmax(180px, 30%);
     gap: 16px;
-    padding: 0 16px;
+    padding: 0 16px var(--safe-b);
   }
   .np__art { width: 56px; height: 56px; }
   .player__now { gap: 14px; }

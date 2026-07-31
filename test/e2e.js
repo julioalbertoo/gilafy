@@ -240,14 +240,28 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
   });
   await page.screenshot({ path: `${OUT}/01-home.png` });
 
-  await step('el buscador queda fijo abajo, bajo el reproductor', async () => {
-    const m = await page.evaluate(() => {
+  await step('el buscador queda arriba y no se desplaza con el contenido', async () => {
+    const antes = await page.evaluate(() => {
       const r = (sel) => document.querySelector(sel).getBoundingClientRect();
-      return { barra: r('.searchbar'), player: r('#player'), alto: window.innerHeight, pestanas: document.querySelectorAll('.tabbar').length };
+      return {
+        barra: r('.searchbar'), topbar: r('.topbar'), vista: r('.view'),
+        player: r('#player'), alto: window.innerHeight,
+        pestanas: document.querySelectorAll('.tabbar').length,
+      };
     });
-    if (m.pestanas) throw new Error('sigue habiendo barra de pestañas');
-    if (Math.round(m.barra.bottom) !== Math.round(m.alto)) throw new Error(`el buscador no toca el borde: ${m.barra.bottom} de ${m.alto}`);
-    if (Math.round(m.player.bottom) > Math.round(m.barra.top) + 1) throw new Error('el reproductor tapa el buscador');
+    if (antes.pestanas) throw new Error('sigue habiendo barra de pestañas');
+    if (antes.barra.top < antes.topbar.bottom - 1) throw new Error('el buscador se solapa con la cabecera');
+    if (antes.barra.bottom > antes.vista.top + 1) throw new Error('el buscador se mete dentro de la vista');
+    if (Math.round(antes.player.bottom) !== Math.round(antes.alto)) throw new Error('el reproductor no toca el borde inferior');
+
+    const despues = await page.evaluate(() => {
+      document.querySelector('#view').scrollTop = 600;
+      return document.querySelector('.searchbar').getBoundingClientRect().top;
+    });
+    if (Math.round(despues) !== Math.round(antes.barra.top)) {
+      throw new Error(`se movió al desplazar: ${antes.barra.top} → ${despues}`);
+    }
+    await page.evaluate(() => { document.querySelector('#view').scrollTop = 0; });
   });
 
   console.log('\n== Grabación y reproducción ==');
@@ -734,14 +748,14 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
       if (!(await p3.locator('.avatar').isVisible())) throw new Error('sin acceso a la biblioteca');
     });
 
-    await step(`${L.name}: el buscador ocupa el borde inferior`, async () => {
+    await step(`${L.name}: el buscador se queda arriba`, async () => {
       const m = await p3.evaluate(() => {
         const r = (sel) => document.querySelector(sel).getBoundingClientRect();
-        return { barra: r('.searchbar'), campo: r('#searchInput'), player: r('#player'), alto: window.innerHeight };
+        return { barra: r('.searchbar'), campo: r('#searchInput'), vista: r('.view'), player: r('#player'), alto: window.innerHeight };
       });
-      if (Math.round(m.barra.bottom) !== Math.round(m.alto)) throw new Error(`no toca el borde: ${m.barra.bottom} de ${m.alto}`);
+      if (m.barra.bottom > m.vista.top + 1) throw new Error('el buscador cae dentro de la zona que se desplaza');
       if (m.campo.height < 40) throw new Error(`el campo se quedó en ${m.campo.height}px`);
-      if (Math.round(m.player.bottom) > Math.round(m.barra.top) + 1) throw new Error('el reproductor lo tapa');
+      if (Math.round(m.player.bottom) !== Math.round(m.alto)) throw new Error('el reproductor no toca el borde inferior');
     });
 
     await step(`${L.name}: controles del reproductor`, async () => {
@@ -804,28 +818,29 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
       if (px !== '14px') throw new Error(`mide ${px}`);
     });
 
-    /* La zona que se reserva el indicador de inicio tiene que sumarse a la
-     * barra del buscador, no descontarse de ella: con `box-sizing: border-box`
-     * un `padding-bottom` suelto se la come al campo. Chromium no expone
-     * insets, así que forzamos el valor del token. */
-    await step('la zona segura se suma a la barra del buscador', async () => {
+    /* La zona que se reserva el indicador de inicio tiene que sumarse al
+     * reproductor, que es lo que queda pegado al borde, no descontarse de él:
+     * con `box-sizing: border-box` un `padding-bottom` suelto se la come a los
+     * controles. Chromium no expone insets, así que forzamos el valor. */
+    await step('la zona segura se suma al reproductor', async () => {
       const medir = (inset) => pIOS.evaluate((v) => {
         document.documentElement.style.setProperty('--safe-b', v);
-        const sb = document.querySelector('.searchbar');
+        const player = document.querySelector('#player');
+        const cs = getComputedStyle(player);
         return {
-          alto: sb.getBoundingClientRect().height,
-          campo: document.querySelector('#searchInput').getBoundingClientRect().height,
-          player: window.innerHeight - document.querySelector('#player').getBoundingClientRect().bottom,
+          alto: player.getBoundingClientRect().height,
+          controles: player.clientHeight - parseFloat(cs.paddingBottom),
+          borde: window.innerHeight - player.getBoundingClientRect().bottom,
+          app: document.querySelector('.app').getBoundingClientRect().height,
         };
       }, inset);
 
       const sin = await medir('0px');
       const con = await medir('34px');
-      if (con.campo !== sin.campo) throw new Error(`el campo pierde ${sin.campo - con.campo}px`);
-      if (con.alto - sin.alto !== 34) throw new Error(`la barra creció ${con.alto - sin.alto}px, esperaba 34`);
-      if (Math.round(con.player) !== Math.round(con.alto)) {
-        throw new Error(`el reproductor queda a ${con.player}px del borde y la barra mide ${con.alto}px`);
-      }
+      if (con.controles !== sin.controles) throw new Error(`los controles pierden ${sin.controles - con.controles}px`);
+      if (con.alto - sin.alto !== 34) throw new Error(`el reproductor creció ${con.alto - sin.alto}px, esperaba 34`);
+      if (Math.round(con.borde) !== 0) throw new Error(`el reproductor queda a ${con.borde}px del borde`);
+      if (Math.round(sin.app - con.app) !== 34) throw new Error('la app no cede el alto que gana el reproductor');
       await pIOS.evaluate(() => document.documentElement.style.removeProperty('--safe-b'));
     });
 

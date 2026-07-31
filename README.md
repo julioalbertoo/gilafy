@@ -86,7 +86,7 @@ declara para escritorio y luego se deshace hacia abajo.
 
 | Desde | Qué añade |
 |---|---|
-| base | Una columna, buscador fijo abajo, reproductor compacto con el progreso como línea fina, rejilla de 2 columnas |
+| base | Una columna, cabecera con el buscador fijo arriba, reproductor compacto con el progreso como línea fina, rejilla de 2 columnas |
 | 576px | La rejilla pasa a fluir (`auto-fill`), el carril crece |
 | 768px | Barra lateral como carril de iconos, controles completos del reproductor, cabecera de columnas en la lista de temas, héroe en fila, `:hover` en las tarjetas |
 | 896px | La barra lateral se despliega con etiquetas |
@@ -123,9 +123,9 @@ Dos medidas no son negociables en el teléfono, y las dos son de Safari iOS:
   interfaz se desborda por la derecha. Los 14px del diseño vuelven bajo
   `@media (pointer: fine)`, donde ese zoom no existe.
 - **La zona segura de abajo se suma, no se descuenta.** `--safe-b` vive dentro
-  de `--searchbar-h`, así que la barra del buscador crece con el indicador de
-  inicio en vez de comerle sitio al campo, y todo lo que se apila encima
-  —reproductor, cola, aviso y el alto de `.app`— se aparta solo.
+  de `--player-h`, que es lo que queda pegado al borde, así que el reproductor
+  crece con el indicador de inicio en vez de comerle sitio a los controles, y
+  todo lo que se apila encima —cola, aviso y el alto de `.app`— se aparta solo.
 
 [design]: https://getdesign.md/spotify/design-md
 
@@ -150,11 +150,12 @@ se deduce por el título, que es lo único que devuelve el buscador del archivo
 anuncian como EP o sencillo. Se vuelve a deducir **al leer** la copia guardada,
 por el mismo motivo que la abreviatura del nombre.
 
-**El buscador vive fijo en el borde inferior**, donde antes estaba la barra de
-pestañas: es el sitio que alcanza el pulgar y la única navegación permanente
-que queda en el teléfono, junto al chevrón de atrás y el atajo a la biblioteca
-de la cabecera. En escritorio se queda ahí también, como píldora centrada bajo
-el reproductor, y la barra lateral sigue haciendo de navegación principal.
+**El buscador vive fijo justo debajo de la cabecera.** No necesita
+`position: sticky`: vive fuera de `#view`, que es el único elemento que se
+desplaza, así que se queda quieto por construcción. Es la navegación
+permanente que queda en el teléfono —ya no hay barra de pestañas—, junto al
+chevrón de atrás y el atajo a la biblioteca de la cabecera; en escritorio la
+barra lateral sigue haciendo de navegación principal.
 
 ## Funcionalidad
 
@@ -166,7 +167,7 @@ el reproductor, y la barra lateral sigue haciendo de navegación principal.
 - Me gusta, historial y volumen persistentes en `localStorage`
 - La sesión se restaura al recargar: misma cola, misma pista, mismo segundo
 - Estados de carga (*skeletons*), de error y de vacío
-- Mobile first, de 320 px a escritorio, con el buscador fijo en el borde inferior
+- Mobile first, de 320 px a escritorio, con el buscador fijo bajo la cabecera
 - Pantalla completa de reproducción al pulsar la barra inferior (ver abajo)
 - Service worker que cachea sólo el *app shell*, y con la red por delante:
   nunca el audio, para no romper las peticiones `Range` que necesita el
@@ -258,9 +259,9 @@ horizontal del historial y la abreviatura del nombre.
 
 La parte responsive recorre seis anchos (320 · 390 · 576 · 768 · 896 · 1440) y
 en cada uno comprueba en ambos sentidos qué debe verse y qué no: la barra
-lateral sólo desde 768 px, el buscador pegado al borde inferior y sin que el
-reproductor lo tape, exactamente un botón de reproducción, el estado del carril
-de iconos y que no haya desbordamiento horizontal.
+lateral sólo desde 768 px, el buscador fuera de la zona que se desplaza, el
+reproductor pegado al borde inferior, exactamente un botón de reproducción, el
+estado del carril de iconos y que no haya desbordamiento horizontal.
 
 ```bash
 npm i -D playwright && npx playwright install chromium

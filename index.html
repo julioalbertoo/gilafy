@@ -84,6 +84,17 @@
       </div>
     </header>
 
+    <!-- ── Buscador ────────────────────────────────────────────
+         Fijo bajo la cabecera: no se desplaza con el contenido, porque vive
+         fuera de #view, que es lo único que hace scroll. -->
+    <div class="searchbar" id="searchbar">
+      <form class="search" id="searchForm" role="search">
+        <svg class="search__icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M10.5 3a7.5 7.5 0 1 0 4.55 13.46l4.24 4.25a1 1 0 0 0 1.42-1.42l-4.25-4.24A7.5 7.5 0 0 0 10.5 3m0 2a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11"/></svg>
+        <input class="search__input" id="searchInput" type="search" autocomplete="off"
+               placeholder="¿Qué directo quieres escuchar?" aria-label="Buscar grabaciones">
+      </form>
+    </div>
+
     <div class="view" id="view" tabindex="-1"></div>
   </main>
 
@@ -166,17 +177,6 @@
     </div>
   </div>
 </footer>
-
-<!-- ── Buscador fijo, al alcance del pulgar ─────────────────────
-     Ocupa el borde inferior en todos los tamaños: es la única navegación
-     que queda además de la barra lateral de escritorio. -->
-<div class="searchbar" id="searchbar">
-  <form class="search" id="searchForm" role="search">
-    <svg class="search__icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M10.5 3a7.5 7.5 0 1 0 4.55 13.46l4.24 4.25a1 1 0 0 0 1.42-1.42l-4.25-4.24A7.5 7.5 0 0 0 10.5 3m0 2a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11"/></svg>
-    <input class="search__input" id="searchInput" type="search" autocomplete="off"
-           placeholder="¿Qué directo quieres escuchar?" aria-label="Buscar grabaciones">
-  </form>
-</div>
 
 <!-- ── Reproduciendo ahora, a pantalla completa ──────────────
      Se abre al pulsar la barra inferior en móvil. Comparte estado con la
