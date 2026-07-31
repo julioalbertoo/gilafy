@@ -30,7 +30,7 @@ const CATALOG_TTL = 12 * 60 * 60 * 1000;   // 12 h
    las copias viejas seguirían pintándose hasta que caduquen. Subir esta
    versión las descarta. Las preferencias del usuario —me gusta, historial,
    volumen— no llevan versión y sobreviven a los cambios. */
-const DATA_VERSION = 4;
+const DATA_VERSION = 5;
 
 /* El identificador exacto de la colección puede variar; probamos
    varias estrategias y nos quedamos con la primera que devuelva
@@ -50,14 +50,28 @@ const FIELDS = ['identifier', 'title', 'date', 'year', 'creator', 'coverage',
  *
  * Polygondwanaland (2017) se publicó con los másters y la portada
  * descargables y permiso expreso para copiarlo, prensarlo y venderlo: «We do
- * not own this record. You do». Decenas de sellos lo prensaron. Es el único
- * disco de estudio que entra aquí por derecho propio.
+ * not own this record. You do». Decenas de sellos lo prensaron.
  *
- * El resto del catálogo de estudio es comercial: no se busca ni se enlaza,
+ * El resto entra por el programa Bootlegger que la banda abrió en diciembre de
+ * 2020: publica los ficheros máster y las portadas, y el permiso es el mismo
+ * bajo el que la app ya reproduce los directos —«If anyone wants to release
+ * these albums, you're free to do so… it's yours»—. No son conciertos: son
+ * maquetas y grabaciones de estudio tempranas.
+ *
+ * El catálogo de estudio comercial sigue fuera: no se busca ni se enlaza,
  * aunque haya subidas de terceros en el archivo. Si la banda libera algo más,
- * basta con añadirlo a esta lista. */
+ * basta con añadirlo a esta lista.
+ *
+ * `query` es la frase que se le pide al archivo y `key` la que identifica al
+ * disco entre lo que devuelve, ya normalizada: las maquetas comparten frase de
+ * búsqueda y sólo el número de volumen las distingue. */
 const FREE_STUDIO = [
-  { key: 'polygondwanaland', title: 'Polygondwanaland', year: '2017' },
+  { key: 'polygondwanaland', query: 'polygondwanaland', title: 'Polygondwanaland',      year: '2017' },
+  { key: 'teenage gizzard',  query: 'teenage gizzard',  title: 'Teenage Gizzard',       year: '2020', note: 'Recopilación de estudio' },
+  { key: 'demos vol 1',      query: 'demos vol',        title: 'Demos Vol. 1 + Vol. 2', year: '2020', note: 'Maquetas de estudio' },
+  { key: 'demos vol 3',      query: 'demos vol',        title: 'Demos Vol. 3 + Vol. 4', year: '2022', note: 'Maquetas de estudio' },
+  { key: 'demos vol 5',      query: 'demos vol',        title: 'Demos Vol. 5 + Vol. 6', year: '2024', note: 'Maquetas de estudio' },
+  { key: 'demos vol 7',      query: 'demos vol',        title: 'Demos Vol. 7 + Vol. 8', year: '2025', note: 'Maquetas de estudio' },
 ];
 
 /* Tipos de publicación, en el orden en que se listan.
@@ -97,6 +111,10 @@ const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 const first = (v) => (Array.isArray(v) ? v[0] : v);
 const nfmt = new Intl.NumberFormat('es-ES');
+
+/** Texto comparable: minúsculas y sin puntuación, para que «Demos Vol. 1 +
+ *  Vol. 2» y «Demos Vol 1 & 2» se reconozcan como el mismo disco. */
+const plain = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) =>
@@ -283,7 +301,10 @@ function normalizeDoc(doc) {
  * carga del catálogo principal.
  */
 async function loadStudio() {
-  const clauses = FREE_STUDIO.map((a) => `title:(${a.key})`).join(' OR ');
+  // Varias entradas comparten frase —las maquetas—, así que la consulta se
+  // monta sobre las frases distintas, no sobre los discos.
+  const clauses = [...new Set(FREE_STUDIO.map((a) => a.query))]
+    .map((q) => `title:("${q}")`).join(' OR ');
   let docs = [];
   try {
     const data = await getJSON(searchURL(`(${clauses}) AND mediatype:(audio)`, { rows: 60 }));
@@ -294,12 +315,13 @@ async function loadStudio() {
 
   const best = new Map();
   for (const doc of docs) {
-    const haystack = `${doc.title} ${doc.id}`.toLowerCase();
+    const haystack = plain(`${doc.title} ${doc.id}`);
     const album = FREE_STUDIO.find((a) => haystack.includes(a.key));
     if (!album) continue;                      // descarta directos que citan el título
     const prev = best.get(album.key);
     if (prev && prev.downloads >= doc.downloads) continue;
-    best.set(album.key, { ...doc, kind: 'studio', title: album.title, year: doc.year || album.year, place: 'Álbum de estudio' });
+    best.set(album.key, { ...doc, kind: 'studio', title: album.title,
+                          year: doc.year || album.year, place: album.note || 'Álbum de estudio' });
   }
   return [...best.values()];
 }
@@ -966,8 +988,14 @@ async function viewAlbum(id) {
       <div class="hero__row">
         <img class="hero__art" src="${esc(item.art)}" alt="Portada de ${esc(item.title)}" data-fb="${esc(item.title)}">
         <div>
-          <p class="hero__kicker">${state.catalog.find((d) => d.id === id)?.kind === 'studio'
-            ? 'Álbum de estudio · liberado por la banda' : 'Grabación en directo'}</p>
+          <p class="hero__kicker">${(() => {
+            // Lo de estudio lo dice el catálogo, y con sus palabras: no todo
+            // lo liberado es un álbum al uso, hay maquetas y recopilaciones.
+            const doc = state.catalog.find((d) => d.id === id);
+            return doc?.kind === 'studio'
+              ? `${esc(doc.place || 'Álbum de estudio')} · liberado por la banda`
+              : 'Grabación en directo';
+          })()}</p>
           <h1 class="hero__title">${esc(item.title)}</h1>
           <p class="hero__facts"><b>${esc(item.creator)}</b><span class="hero__sep">•</span>${
             facts.map(esc).join('<span class="hero__sep">•</span>')}</p>

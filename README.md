@@ -34,16 +34,41 @@ expresamente grabar sus conciertos y redistribuirlos sin ánimo de lucro, y esas
 grabaciones viven en Internet Archive. Es material genuinamente libre, así que
 Gilafy lo consulta y lo reproduce directamente desde allí.
 
-De estudio hay exactamente uno: **Polygondwanaland** (2017), que la banda
-publicó con los másters y la portada descargables y permiso expreso para
-copiarlo, prensarlo y venderlo — *«We do not own this record. You do»*.
-Decenas de sellos lo prensaron. Entra por derecho propio, marcado como
-`Estudio`, y sale de una búsqueda dirigida por título: de las varias subidas
-que suele haber en el archivo se conserva la más descargada.
+De estudio hay seis, y en dos niveles distintos de permiso:
+
+| Disco | Año | Qué es | Base |
+|---|---|---|---|
+| Polygondwanaland | 2017 | Álbum | Dominio público (CC0) |
+| Teenage Gizzard | 2020 | Recopilación de grabaciones de 2010-11 | Bootlegger |
+| Demos Vol. 1 + Vol. 2 | 2020 | Maquetas | Bootlegger |
+| Demos Vol. 3 + Vol. 4 | 2022 | Maquetas | Bootlegger |
+| Demos Vol. 5 + Vol. 6 | 2024 | Maquetas | Bootlegger |
+| Demos Vol. 7 + Vol. 8 | 2025 | Maquetas | Bootlegger |
+
+**Polygondwanaland** es el caso fuerte: la banda lo publicó con los másters y
+la portada descargables y permiso expreso para copiarlo, prensarlo y venderlo
+—*«We do not own this record. You do»*—, y decenas de sellos lo prensaron.
+
+El resto entra por el mismo **programa Bootlegger** bajo el que ya se
+reproducen los directos: la banda publica los ficheros máster y las portadas
+para que cualquiera los edite —*«If anyone wants to release these albums,
+you're free to do so… it's yours»*—, y lo único que pide a cambio son copias
+físicas para su tienda. Es un permiso explícito pero informal, redactado
+pensando en prensar discos, así que no añade riesgo al que el proyecto ya
+tenía: si vale para *Live in Brussels '19*, vale para *Demos Vol. 1 + Vol. 2*.
+
+Todos salen de una búsqueda dirigida por título, y de las varias subidas que
+suele haber en el archivo se conserva la más descargada. Lo que el archivo no
+tenga simplemente no se pinta.
 
 El resto del catálogo de estudio es comercial y **no** está aquí: no se busca
 ni se enlaza, aunque haya subidas de terceros en el archivo. Añadir un disco
-liberado nuevo es una línea en `FREE_STUDIO`.
+liberado nuevo es una línea en `FREE_STUDIO`, con dos campos que no son lo
+mismo: `query` es la frase que se le pide al archivo y `key` la que reconoce el
+disco entre lo que vuelve, ya normalizada —sin puntuación y en minúsculas—,
+porque las maquetas comparten frase de búsqueda y sólo las distingue el número
+de volumen, que el archivo escribe como le parece (`Vol. 1 + Vol. 2`,
+`Vol 1 & 2`).
 
 Todo el audio se transmite desde `archive.org`; este repositorio no contiene ni
 un solo byte de música.
@@ -262,7 +287,7 @@ Y abre `http://localhost:8000`.
 
 `test/e2e.js` levanta la app en un Chromium sin cabeza, simula las respuestas
 de archive.org (búsqueda, metadatos, carátulas y un WAV sintético) y verifica
-88 escenarios: publicaciones y sus filtros, reproducción, avance automático,
+90 escenarios: publicaciones y sus filtros, reproducción, avance automático,
 continuidad con la pestaña oculta, metadatos de Media Session, cola,
 persistencia, búsqueda, estado de error, pantalla completa, el carril
 horizontal del historial y la abreviatura del nombre.

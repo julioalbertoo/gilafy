@@ -53,13 +53,27 @@ const SHOWS = [
 const TITLES = ['Rattlesnake', 'Robot Stop', 'The River', 'Crumbling Castle'];
 
 /* El archivo suele tener varias subidas del mismo disco liberado; la app debe
- * quedarse con una sola, la más descargada. El tercero es un directo que sólo
- * menciona el título y no debe colarse como álbum de estudio. */
+ * quedarse con una sola, la más descargada. El último es un directo que sólo
+ * menciona el título y no debe colarse como álbum de estudio.
+ *
+ * Las maquetas comparten frase de búsqueda y sólo las distingue el número de
+ * volumen, así que van escritas como aparecen en el archivo —con puntuación y
+ * sin ella— para comprobar que ni se confunden entre sí ni se pierden. */
 const STUDIO = [
   { identifier: 'polygondwanaland-flac', title: 'King Gizzard & The Lizard Wizard - Polygondwanaland', creator: 'King Gizzard & The Lizard Wizard', year: '2017', date: '2017-11-17T00:00:00Z', downloads: 4000, avg_rating: '5.0' },
   { identifier: 'Polygondwanaland_mp3', title: 'Polygondwanaland (free release)', creator: 'King Gizzard & The Lizard Wizard', year: '2017', date: '2017-11-20T00:00:00Z', downloads: 91000, avg_rating: '4.8' },
+  { identifier: 'teenage-gizzard-bootlegger', title: 'King Gizzard & The Lizard Wizard - Teenage Gizzard', creator: 'King Gizzard & The Lizard Wizard', year: '2020', date: '2020-12-24T00:00:00Z', downloads: 7100, avg_rating: '4.6' },
+  { identifier: 'kglw-demos-vol-1-2', title: 'King Gizzard - Demos Vol. 1 + Vol. 2', creator: 'King Gizzard & The Lizard Wizard', year: '2020', date: '2020-09-29T00:00:00Z', downloads: 6200, avg_rating: '4.4' },
+  { identifier: 'kglw-demos-vol-1-2-tape', title: 'Demos Vol 1 & 2 (tape rip)', creator: 'King Gizzard & The Lizard Wizard', year: '2020', date: '2020-10-02T00:00:00Z', downloads: 900, avg_rating: '4.0' },
+  { identifier: 'kglw-demos-vol-3-4', title: 'Demos Vol 3 + Vol 4', creator: 'King Gizzard & The Lizard Wizard', year: '2022', date: '2022-07-15T00:00:00Z', downloads: 3100, avg_rating: '4.3' },
   { identifier: 'kglw-otro-directo', title: 'KGLW Live in Utrecht', creator: 'King Gizzard & The Lizard Wizard', year: '2019', date: '2019-05-05T00:00:00Z', downloads: 500, avg_rating: '4.0' },
 ];
+
+/* Cómo debe quedar la sección de álbumes: un disco por entrada de FREE_STUDIO
+ * que el archivo tenga, con el título canónico de la app —no el de la subida—.
+ * Las maquetas 5+6 y 7+8 no están en el simulacro a propósito: lo que no
+ * aparece en el archivo simplemente no se pinta. */
+const STUDIO_TITLES = ['Polygondwanaland', 'Teenage Gizzard', 'Demos Vol. 1 + Vol. 2', 'Demos Vol. 3 + Vol. 4'];
 
 /** Cada tema aparece en tres formatos, como en el archivo real: la app debe
  *  quedarse con un único derivado reproducible por pista. */
@@ -160,27 +174,36 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
   await step('el catálogo llega a la estantería', async () => {
     await page.waitForSelector('.shelf__item', { timeout: 8000 });
     const n = await page.locator('.shelf__item').count();
-    // Los directos más el único álbum de estudio que sobrevive a la criba.
-    if (n !== SHOWS.length + 1) throw new Error(`esperaba ${SHOWS.length + 1} items, hay ${n}`);
+    // Los directos más los discos de estudio que sobreviven a la criba.
+    const esperados = SHOWS.length + STUDIO_TITLES.length;
+    if (n !== esperados) throw new Error(`esperaba ${esperados} items, hay ${n}`);
   });
 
-  await step('el disco liberado aparece, deduplicado y etiquetado', async () => {
+  await step('los discos liberados aparecen, deduplicados y etiquetados', async () => {
     const row = page.locator('.section', { hasText: 'Álbumes' });
     await row.waitFor({ timeout: 6000 });
-    const pubs = row.locator('.pub');
-    if (await pubs.count() !== 1) throw new Error(`${await pubs.count()} copias del mismo álbum`);
-    const text = await pubs.first().innerText();
-    if (!text.includes('Polygondwanaland')) throw new Error(`fila: ${text.trim()}`);
+    const titulos = await row.locator('.pub__title').allTextContents();
+    if (titulos.length !== STUDIO_TITLES.length) {
+      throw new Error(`esperaba ${STUDIO_TITLES.length} álbumes, hay ${titulos.length}: ${titulos.join(' | ')}`);
+    }
+    for (const wanted of STUDIO_TITLES) {
+      const copias = titulos.filter((t) => t === wanted).length;
+      if (copias !== 1) throw new Error(`«${wanted}» sale ${copias} veces: ${titulos.join(' | ')}`);
+    }
+    const text = await row.locator('.pub').first().innerText();
     if (!text.includes('Álbum')) throw new Error(`sin el tipo de publicación: ${text.trim()}`);
-    // Debe elegir la copia más descargada.
-    const href = await pubs.first().locator('.pub__open').getAttribute('href');
-    if (!href.includes('Polygondwanaland_mp3')) throw new Error(`eligió ${href}, no la más descargada`);
+    // De cada disco debe elegir la copia más descargada.
+    const hrefs = await row.locator('.pub__open').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
+    for (const wanted of ['Polygondwanaland_mp3', 'kglw-demos-vol-1-2']) {
+      if (!hrefs.some((h) => h.includes(wanted))) throw new Error(`no eligió ${wanted}: ${hrefs.join(' | ')}`);
+    }
+    if (hrefs.some((h) => h.includes('tape'))) throw new Error('eligió la copia menos descargada de las maquetas');
   });
 
   await step('un directo que cita el título no cuenta como estudio', async () => {
     const albumes = await page.locator('.section', { hasText: 'Álbumes' }).locator('.pub__title').allTextContents();
     if (!albumes.length) throw new Error('la sección de álbumes está vacía');
-    const intrusas = albumes.filter((t) => !t.includes('Polygondwanaland'));
+    const intrusas = albumes.filter((t) => !STUDIO_TITLES.includes(t));
     if (intrusas.length) throw new Error(`listadas como álbum: ${intrusas.join(' | ')}`);
     const body = await page.locator('body').innerText();
     if (body.includes('Utrecht')) throw new Error('se coló un directo en la búsqueda de estudio');
