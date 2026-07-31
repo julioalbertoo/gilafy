@@ -651,7 +651,13 @@ a.avatar.is-active { background: var(--text-base); color: #000; }
 .np-full {
   position: fixed; inset: 0; z-index: 60;
   display: flex;
+  /* `clip`, no `hidden`. Los dos recortan igual, pero `hidden` deja un
+     contenedor desplazable, y la hoja empieza fuera de la pantalla: cualquier
+     cosa que enfoque algo suyo antes de tiempo —el chevrón al abrir— lo
+     desplaza para «traerlo a la vista» y descoloca la animación. Con `clip`
+     no hay nada que desplazar. */
   overflow: hidden;
+  overflow: clip;
 }
 .np-full__sheet {
   flex: 1;

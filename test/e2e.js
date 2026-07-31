@@ -676,6 +676,49 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
       await m.locator('#npFullClose').click();
     });
 
+    await step('la hoja entra deslizándose, sin saltos', async () => {
+      /* Enfocar el chevrón al abrir desplazaba el contenedor: la hoja aún está
+       * en translateY(100%), así que el navegador la traía «a la vista» media
+       * pantalla arriba. El recorte lo hacía invisible, pero la hoja aparecía
+       * de golpe y luego tiritaba mientras ese scrollTop se deshacía solo
+       * durante los 260ms de la transición. */
+      await m.waitForSelector('#npFull', { state: 'hidden', timeout: 4000 });
+
+      await m.evaluate(() => {
+        window.__frames = [];
+        const sample = () => {
+          const full = document.querySelector('#npFull');
+          if (!full.hidden) {
+            window.__frames.push({
+              scrollTop: full.scrollTop,
+              top: document.querySelector('#npFullSheet').getBoundingClientRect().top,
+            });
+          }
+          if (window.__frames.length < 25) requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      });
+      await m.locator('#npExpand').click();
+      await settled();
+
+      const f = await m.evaluate(() => window.__frames);
+      if (f.length < 5) throw new Error(`sólo ${f.length} fotogramas medidos`);
+
+      const scrolled = f.find((x) => x.scrollTop !== 0);
+      if (scrolled) throw new Error(`el contenedor se desplazó ${scrolled.scrollTop}px al abrir`);
+
+      // El primer fotograma pintado debe tener la hoja abajo del todo.
+      const alto = await m.evaluate(() => window.innerHeight);
+      if (f[0].top < alto * 0.9) throw new Error(`la hoja aparece ya a ${Math.round(f[0].top)}px, no desde ${alto}px`);
+
+      // Y debe subir progresivamente, sin plantarse arriba en dos fotogramas.
+      const arriba = f.findIndex((x) => x.top <= 8);
+      if (arriba !== -1 && arriba < 6) throw new Error(`llega arriba en ${arriba + 1} fotogramas: es un salto, no una transición`);
+
+      await m.locator('#npFullClose').click();
+      await m.waitForSelector('#npFull', { state: 'hidden', timeout: 4000 });
+    });
+
     await step('el escuchado recientemente es un carril horizontal, al final', async () => {
       // Con un solo elemento no habría nada que desplazar: sembramos el
       // historial con todo el catálogo y volvemos a publicaciones.

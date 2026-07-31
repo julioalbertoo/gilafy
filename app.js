@@ -1108,7 +1108,14 @@ function openNowPlaying() {
   history.pushState({ npFull: true }, '', location.href);
   npFullPushed = true;
 
-  $('#npFullClose').focus();
+  /* `preventScroll` no es cosmético. Aquí la hoja sigue en `translateY(100%)`,
+     así que el chevrón está una pantalla por debajo del borde y enfocarlo hace
+     que el navegador desplace el contenedor para traerlo a la vista. El
+     recorte de `.np-full` oculta ese desplazamiento, pero no lo impide: la
+     hoja aparece ya media pantalla arriba, salta al borde superior en dos
+     fotogramas y se queda ahí, quieta, mientras el `scrollTop` se deshace solo
+     durante los 260ms que dura la transición. Es decir, el parpadeo. */
+  $('#npFullClose').focus({ preventScroll: true });
 }
 
 /**

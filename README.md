@@ -202,6 +202,16 @@ Detalles que costaron un intento cada uno:
 - Arrastrar una imagen dispara el drag-and-drop nativo del navegador, que se
   come los `pointermove`/`pointerup` y deja el gesto colgado. Hace falta
   `draggable="false"`, cancelar `dragstart` y capturar el puntero.
+- Al abrir se enfoca el chevrón con `preventScroll`, y el contenedor recorta
+  con `overflow: clip`, no con `hidden`. En ese momento la hoja todavía está en
+  `translateY(100%)`, así que el chevrón cae una pantalla por debajo del borde
+  y enfocarlo hacía que el navegador desplazara el contenedor para traerlo a la
+  vista. El recorte ocultaba ese desplazamiento pero no lo impedía: la hoja
+  aparecía ya media pantalla arriba, saltaba al borde superior en dos
+  fotogramas y se quedaba quieta mientras el `scrollTop` se deshacía solo
+  durante los 260 ms de la transición. Es decir, parpadeaba en vez de entrar
+  deslizándose. `clip` recorta igual pero no deja un contenedor desplazable, de
+  modo que ningún otro enfoque a destiempo puede repetirlo.
 - La hoja lleva `min-width: 0`. Es un elemento flexible, y con el `auto` por
   defecto crece hasta el ancho de su contenido más largo —el nombre de la
   grabación, que va en una sola línea— en vez de obligarlo a recortarse. Con
@@ -252,7 +262,7 @@ Y abre `http://localhost:8000`.
 
 `test/e2e.js` levanta la app en un Chromium sin cabeza, simula las respuestas
 de archive.org (búsqueda, metadatos, carátulas y un WAV sintético) y verifica
-87 escenarios: publicaciones y sus filtros, reproducción, avance automático,
+88 escenarios: publicaciones y sus filtros, reproducción, avance automático,
 continuidad con la pestaña oculta, metadatos de Media Session, cola,
 persistencia, búsqueda, estado de error, pantalla completa, el carril
 horizontal del historial y la abreviatura del nombre.
