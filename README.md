@@ -12,6 +12,12 @@ archivo (`King Gizzard & The Lizard Wizard`, `…and the…`,
 y conserva el nombre completo sólo en las consultas, que es donde tiene que
 coincidir literalmente.
 
+Ojo con lo que se guarda: el catálogo y la sesión van a `localStorage` **ya
+procesados**, así que cambiar cómo se derivan no basta — las copias viejas
+seguirían pintándose hasta caducar. Por eso llevan una `DATA_VERSION` que las
+invalida. Las preferencias (me gusta, historial, volumen) no la llevan y
+sobreviven a los cambios.
+
 **▶ En vivo: <https://julioalbertoo.github.io/gilafy/>**
 
 Sin dependencias, sin build, sin claves de API: son ficheros estáticos. Abre
@@ -111,8 +117,10 @@ que usa la app original.
 - Estados de carga (*skeletons*), de error y de vacío
 - Mobile first, de 320 px a escritorio, con barra de pestañas en el teléfono
 - Pantalla completa de reproducción al pulsar la barra inferior (ver abajo)
-- Service worker que cachea sólo el *app shell* — nunca el audio, para no
-  romper las peticiones `Range` que necesita el desplazamiento dentro del tema
+- Service worker que cachea sólo el *app shell*, y con la red por delante:
+  nunca el audio, para no romper las peticiones `Range` que necesita el
+  desplazamiento dentro del tema, y nunca por delante de la red, para no
+  servir siempre la versión del despliegue anterior
 
 ### Pantalla completa de reproducción
 
@@ -184,7 +192,7 @@ Y abre `http://localhost:8000`.
 
 `test/e2e.js` levanta la app en un Chromium sin cabeza, simula las respuestas
 de archive.org (búsqueda, metadatos, carátulas y un WAV sintético) y verifica
-68 escenarios: reproducción, avance automático, continuidad con la pestaña
+69 escenarios: reproducción, avance automático, continuidad con la pestaña
 oculta, metadatos de Media Session, cola, persistencia, búsqueda, estado de
 error, pantalla completa y abreviatura del nombre.
 

@@ -320,6 +320,45 @@ const PNG = Buffer.from(
     await page.reload({ waitUntil: 'networkidle' });
     await page.waitForFunction((b) => document.querySelector('#npTitle').textContent === b, before, { timeout: 8000 });
   });
+  await step('una caché de una versión anterior se descarta', async () => {
+    /* El catálogo y la sesión se guardan YA procesados. Si una copia vieja
+     * sobrevive a un cambio en cómo se derivan —como la abreviatura a KGLW—
+     * la app pintaría datos con el formato antiguo. */
+    const p4 = await ctx.newPage();
+    await p4.addInitScript(() => {
+      localStorage.setItem('gilafy.catalog', JSON.stringify({
+        ts: Date.now(),
+        docs: [{
+          id: 'viejo', title: 'King Gizzard & The Lizard Wizard Live at Anthem',
+          creator: 'King Gizzard & The Lizard Wizard', date: '2022-10-23T00:00:00Z',
+          year: '2022', place: 'Washington, DC', downloads: 1, rating: 5,
+          art: 'https://archive.org/services/img/viejo',
+        }],
+      }));
+      localStorage.setItem('gilafy.session', JSON.stringify({
+        pos: 0, order: [0], context: 'viejo', time: 0,
+        queue: [{
+          itemId: 'viejo', file: 'a.mp3', title: 'Banter',
+          album: 'King Gizzard & The Lizard Wizard Live at Anthem',
+          artist: 'King Gizzard & The Lizard Wizard', num: 1, duration: 60,
+          art: 'https://archive.org/services/img/viejo',
+          url: 'https://archive.org/download/viejo/a.mp3',
+        }],
+      }));
+    });
+    await p4.goto(url, { waitUntil: 'networkidle' });
+    await p4.waitForSelector('.card', { timeout: 8000 });
+
+    const body = await p4.locator('body').innerText();
+    if (/King\s*Gizzard/i.test(body)) {
+      throw new Error(`sobrevivió la caché vieja: «${body.match(/.{0,50}King\s*Gizzard.{0,30}/i)[0].trim()}»`);
+    }
+    if (await p4.locator('#npTitle').textContent() === 'Banter') {
+      throw new Error('se restauró una sesión de la versión anterior');
+    }
+    await p4.close();
+  });
+
   await step('estado de error, en español, si el archivo no responde', async () => {
     const p2 = await ctx.newPage();
     await p2.route('**/archive.org/**', (r) => r.abort());

@@ -4,7 +4,7 @@
    elemento <audio> deben llegar intactas al servidor, o el desplazamiento
    dentro de la pista dejaría de funcionar. */
 
-const CACHE = 'gilafy-v1';
+const CACHE = 'gilafy-v2';
 const SHELL = [
   './',
   './index.html',
@@ -40,19 +40,24 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;   // archive.org pasa de largo
   if (request.headers.has('range')) return;
 
-  // Stale-while-revalidate: respuesta instantánea y actualización en segundo plano.
+  /* Primero la red, con la caché como respaldo.
+     Servir la copia guardada y refrescar por detrás (stale-while-revalidate)
+     dejaría al usuario viendo siempre la versión del despliegue anterior en
+     la primera carga; con la app cambiando, eso se nota. La caché queda para
+     lo que de verdad es: funcionar sin conexión. */
   event.respondWith(
     caches.open(CACHE).then(async (cache) => {
-      const cached = await cache.match(request, { ignoreSearch: true });
-      const network = fetch(request)
-        .then((response) => {
-          if (response && response.ok && response.type === 'basic') {
-            cache.put(request, response.clone());
-          }
-          return response;
-        })
-        .catch(() => cached);
-      return cached || network;
+      try {
+        const response = await fetch(request);
+        if (response && response.ok && response.type === 'basic') {
+          cache.put(request, response.clone());
+        }
+        return response;
+      } catch {
+        const cached = await cache.match(request, { ignoreSearch: true });
+        if (cached) return cached;
+        throw new Error('sin red y sin copia en caché');
+      }
     })
   );
 });
