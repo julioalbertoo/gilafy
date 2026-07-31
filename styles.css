@@ -657,6 +657,12 @@ a.avatar.is-active { background: var(--text-base); color: #000; }
 }
 .np-full__sheet {
   flex: 1;
+  /* Sin esto la hoja es un elemento flexible con `min-width: auto`, así que
+     crece hasta el ancho de su contenido más largo —el nombre de la grabación,
+     que va en una sola línea— en vez de obligarlo a recortarse. Con títulos
+     largos la hoja se salía por la derecha y `overflow: hidden` recortaba el
+     corazón, la repetición y el tiempo restante. */
+  min-width: 0;
   display: flex; flex-direction: column;
   gap: 16px;
   padding: calc(12px + env(safe-area-inset-top, 0px)) 24px calc(20px + var(--safe-b));

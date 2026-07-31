@@ -201,6 +201,12 @@ Detalles que costaron un intento cada uno:
 - Arrastrar una imagen dispara el drag-and-drop nativo del navegador, que se
   come los `pointermove`/`pointerup` y deja el gesto colgado. Hace falta
   `draggable="false"`, cancelar `dragstart` y capturar el puntero.
+- La hoja lleva `min-width: 0`. Es un elemento flexible, y con el `auto` por
+  defecto crece hasta el ancho de su contenido más largo —el nombre de la
+  grabación, que va en una sola línea— en vez de obligarlo a recortarse. Con
+  los títulos reales del archivo, que son largos, la hoja se salía por la
+  derecha y el `overflow: hidden` del contenedor cortaba el corazón, la
+  repetición y el tiempo restante.
 
 En escritorio no existe: la barra ya muestra todos los controles.
 
@@ -245,7 +251,7 @@ Y abre `http://localhost:8000`.
 
 `test/e2e.js` levanta la app en un Chromium sin cabeza, simula las respuestas
 de archive.org (búsqueda, metadatos, carátulas y un WAV sintético) y verifica
-85 escenarios: publicaciones y sus filtros, reproducción, avance automático,
+87 escenarios: publicaciones y sus filtros, reproducción, avance automático,
 continuidad con la pestaña oculta, metadatos de Media Session, cola,
 persistencia, búsqueda, estado de error, pantalla completa, el carril
 horizontal del historial y la abreviatura del nombre.

@@ -46,7 +46,7 @@ const server = http.createServer((req, res) => {
 const SHOWS = [
   { identifier: 'kglw2022-10-15.matrix', title: 'King Gizzard Live at Red Rocks 2022-10-15', date: '2022-10-15T00:00:00Z', year: '2022', creator: 'King Gizzard & The Lizard Wizard', coverage: 'Morrison, CO', venue: 'Red Rocks Amphitheatre', downloads: 91234, avg_rating: '4.9', publicdate: '2022-11-01T00:00:00Z' },
   { identifier: 'kglw2019-06-01.akg', title: 'King Gizzard Live in Melbourne 2019-06-01', date: '2019-06-01T00:00:00Z', year: '2019', creator: 'King Gizzard & The Lizard Wizard', coverage: 'Melbourne, AU', venue: 'Forum Theatre', downloads: 55010, avg_rating: '4.5', publicdate: '2019-07-01T00:00:00Z' },
-  { identifier: 'kglw2023-03-04.sbd', title: 'King Gizzard Live in Chicago 2023-03-04', date: '2023-03-04T00:00:00Z', year: '2023', creator: 'King Gizzard & The Lizard Wizard', coverage: 'Chicago, IL', venue: 'Aragon Ballroom', downloads: 33001, avg_rating: '4.2', publicdate: '2023-04-01T00:00:00Z' },
+  { identifier: 'kglw2023-03-04.sbd', title: 'King Gizzard & The Lizard Wizard Live at the Aragon Ballroom in Chicago on 2023-03-04', date: '2023-03-04T00:00:00Z', year: '2023', creator: 'King Gizzard & The Lizard Wizard', coverage: 'Chicago, IL', venue: 'Aragon Ballroom', downloads: 33001, avg_rating: '4.2', publicdate: '2023-04-01T00:00:00Z' },
   { identifier: 'kglw2018-08-08.dsbd', title: 'King Gizzard Live in Barcelona 2018-08-08', date: '2018-08-08T00:00:00Z', year: '2018', creator: 'King Gizzard & The Lizard Wizard', coverage: 'Barcelona, ES', venue: 'Razzmatazz', downloads: 12000, avg_rating: '3.9', publicdate: '2018-09-01T00:00:00Z' },
 ];
 
@@ -539,6 +539,24 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
       const full = await m.locator('.np-full__title').textContent();
       if (bar !== full) throw new Error(`barra «${bar}» ≠ pantalla «${full}»`);
       if (!(await m.locator('.np-full__art').getAttribute('src'))) throw new Error('sin carátula');
+    });
+
+    await step('con un título largo la hoja no se sale por la derecha', async () => {
+      /* La hoja es un elemento flexible: sin `min-width: 0` crece hasta el
+       * ancho del nombre de la grabación —que va en una sola línea— y el
+       * corazón, la repetición y el tiempo restante quedan fuera de pantalla,
+       * recortados por el `overflow: hidden` del contenedor. */
+      const med = await m.evaluate(() => {
+        const dentro = [...document.querySelectorAll('#npFullSheet *')]
+          .map((el) => el.getBoundingClientRect().right);
+        return {
+          hoja: document.querySelector('#npFullSheet').getBoundingClientRect().width,
+          derecha: Math.max(...dentro),
+          ancho: window.innerWidth,
+        };
+      });
+      if (med.hoja > med.ancho + 1) throw new Error(`la hoja mide ${med.hoja}px en ${med.ancho}px de pantalla`);
+      if (med.derecha > med.ancho + 1) throw new Error(`hay contenido hasta ${Math.round(med.derecha)}px, fuera de ${med.ancho}px`);
     });
 
     await step('la carátula llena el hueco y es cuadrada', async () => {
