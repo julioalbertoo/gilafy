@@ -109,6 +109,12 @@ plano es lo que sobrevive en segundo plano.
 El `manifest.json` permite instalarla como PWA (`display: standalone`), que es
 donde el segundo plano se comporta mejor en móvil.
 
+El icono sale de la portada del segundo día de Bulgaria 2025 —el cartel del
+Ancient Theatre de Plovdiv del ítem `kglw2025-06-09`, la misma imagen que la
+app pinta como carátula de ese concierto—, recortado sobre el bicho: es lo
+único que se lee a 32 píxeles. `icon-maskable.png` repite el recorte más
+abierto, para que el círculo de Android no se coma la cabeza.
+
 ## Estilos
 
 `styles.css` está escrito **mobile first**: la base sin ninguna consulta de
@@ -316,7 +322,7 @@ index.html   Estructura y el <audio> persistente
 styles.css   Sistema visual (tokens de DESIGN.md)
 app.js       Datos, enrutado, vistas y motor de reproducción
 sw.js        Cache del app shell (excluye archive.org)
-manifest.json + icon*.svg   Instalación como PWA
+manifest.json + icon*.png   Instalación como PWA
 test/e2e.js  Comprobaciones de extremo a extremo
 .github/workflows/pages.yml   Despliegue a GitHub Pages en cada push a main
 ```

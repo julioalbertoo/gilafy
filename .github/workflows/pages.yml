@@ -35,7 +35,8 @@ jobs:
       - name: Preparar la carpeta a publicar
         run: |
           mkdir -p dist
-          cp index.html styles.css app.js sw.js manifest.json icon.svg icon-maskable.svg dist/
+          cp index.html styles.css app.js sw.js manifest.json \
+             icon-32.png icon-192.png icon.png icon-maskable.png dist/
 
       - uses: actions/upload-pages-artifact@v3
         with:

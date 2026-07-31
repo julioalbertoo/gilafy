@@ -4,15 +4,17 @@
    elemento <audio> deben llegar intactas al servidor, o el desplazamiento
    dentro de la pista dejaría de funcionar. */
 
-const CACHE = 'gilafy-v3';
+const CACHE = 'gilafy-v4';
 const SHELL = [
   './',
   './index.html',
   './styles.css',
   './app.js',
   './manifest.json',
-  './icon.svg',
-  './icon-maskable.svg',
+  './icon-32.png',
+  './icon-192.png',
+  './icon.png',
+  './icon-maskable.png',
 ];
 
 self.addEventListener('install', (event) => {

@@ -27,7 +27,7 @@ fs.mkdirSync(OUT, { recursive: true });
 
 const MIME = {
   '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript',
-  '.json': 'application/json', '.svg': 'image/svg+xml',
+  '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png',
 };
 
 const server = http.createServer((req, res) => {
@@ -188,6 +188,21 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
     // Los directos más los discos de estudio que sobreviven a la criba.
     const esperados = SHOWS.length + STUDIO_TITLES.length;
     if (n !== esperados) throw new Error(`esperaba ${esperados} items, hay ${n}`);
+  });
+
+  await step('los iconos declarados se sirven de verdad', async () => {
+    const rutas = await page.evaluate(async () => {
+      const links = [...document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]')]
+        .map((l) => l.getAttribute('href'));
+      const manifest = await (await fetch('manifest.json')).json();
+      return [...new Set([...links, ...manifest.icons.map((i) => i.src)])];
+    });
+    if (!rutas.length) throw new Error('la página no declara ningún icono');
+    for (const ruta of rutas) {
+      const res = await page.request.get(new URL(ruta, url).href);
+      if (!res.ok()) throw new Error(`${ruta} responde ${res.status()}`);
+      if (!res.headers()['content-type'].startsWith('image/')) throw new Error(`${ruta} no es una imagen`);
+    }
   });
 
   await step('los discos liberados aparecen, deduplicados y etiquetados', async () => {
