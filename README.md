@@ -1,7 +1,16 @@
 # Gilafy
 
 Una réplica de la interfaz de Spotify que reproduce **el material público de
-King Gizzard & The Lizard Wizard**, servido en directo desde Internet Archive.
+KGLW** (King Gizzard & The Lizard Wizard), servido en directo desde Internet
+Archive.
+
+En la interfaz el nombre aparece siempre abreviado: el completo provoca saltos
+de línea en la barra de reproducción, en las filas de temas y en la cabecera,
+sobre todo en el teléfono. `app.js` normaliza todas las variantes que usa el
+archivo (`King Gizzard & The Lizard Wizard`, `…and the…`,
+`KingGizzardAndTheLizardWizard`, `King Gizzard` a secas) a `KGLW` al pintar,
+y conserva el nombre completo sólo en las consultas, que es donde tiene que
+coincidir literalmente.
 
 **▶ En vivo: <https://julioalbertoo.github.io/gilafy/>**
 (requiere activar Pages una vez — ver [Despliegue](#despliegue))
@@ -54,8 +63,21 @@ donde el segundo plano se comporta mejor en móvil.
 
 ## Estilos
 
+`styles.css` está escrito **mobile first**: la base sin ninguna consulta de
+medios es el teléfono, y todo lo que crece se añade con `min-width`. Nada se
+declara para escritorio y luego se deshace hacia abajo.
+
+| Desde | Qué añade |
+|---|---|
+| base | Una columna, barra de pestañas inferior, reproductor compacto con el progreso como línea fina, rejilla de 2 columnas |
+| 576px | La rejilla pasa a fluir (`auto-fill`) |
+| 768px | Barra lateral como carril de iconos, controles completos del reproductor, cabecera de columnas en la lista de temas, héroe en fila, `:hover` en las tarjetas |
+| 896px | La barra lateral se despliega con etiquetas |
+| 1024px | La cola deja de flotar y ocupa su propia columna |
+| 1280px | Más aire en la rejilla |
+
 Los tokens salen de la especificación [DESIGN.md de Spotify][design], aplicada
-literalmente en `styles.css`:
+literalmente:
 
 | Rol | Valor |
 |---|---|
@@ -88,7 +110,7 @@ que usa la app original.
 - Me gusta, historial y volumen persistentes en `localStorage`
 - La sesión se restaura al recargar: misma cola, misma pista, mismo segundo
 - Estados de carga (*skeletons*), de error y de vacío
-- Responsive de 320 px a escritorio, con barra de pestañas en móvil
+- Mobile first, de 320 px a escritorio, con barra de pestañas en el teléfono
 - Service worker que cachea sólo el *app shell* — nunca el audio, para no
   romper las peticiones `Range` que necesita el desplazamiento dentro del tema
 
@@ -135,9 +157,15 @@ Y abre `http://localhost:8000`.
 
 `test/e2e.js` levanta la app en un Chromium sin cabeza, simula las respuestas
 de archive.org (búsqueda, metadatos, carátulas y un WAV sintético) y verifica
-32 escenarios: reproducción, avance automático, continuidad con la pestaña
+52 escenarios: reproducción, avance automático, continuidad con la pestaña
 oculta, metadatos de Media Session, cola, persistencia, búsqueda, estado de
-error y ausencia de desbordamiento horizontal en tablet y móvil.
+error y abreviatura del nombre.
+
+La parte responsive recorre seis anchos (320 · 390 · 576 · 768 · 896 · 1440) y
+en cada uno comprueba en ambos sentidos qué debe verse y qué no: exactamente
+una navegación (lateral **o** pestañas, nunca las dos ni ninguna), exactamente
+un botón de reproducción, el estado del carril de iconos y que no haya
+desbordamiento horizontal.
 
 ```bash
 npm i -D playwright && npx playwright install chromium

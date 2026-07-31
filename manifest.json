@@ -1,7 +1,7 @@
 {
-  "name": "Gilafy — King Gizzard & The Lizard Wizard",
+  "name": "Gilafy — KGLW",
   "short_name": "Gilafy",
-  "description": "Reproductor del material público y en directo de King Gizzard & The Lizard Wizard, servido desde Internet Archive.",
+  "description": "Reproductor del material público y en directo de KGLW (King Gizzard & The Lizard Wizard), servido desde Internet Archive.",
   "lang": "es",
   "dir": "ltr",
   "start_url": "./index.html#/home",

@@ -155,6 +155,14 @@ const PNG = Buffer.from(
     const n = await page.locator('#btnMute svg:visible').count();
     if (n !== 1) throw new Error(`${n} iconos visibles`);
   });
+  await step('el nombre de la banda se abrevia a KGLW', async () => {
+    const text = await page.locator('body').innerText();
+    if (/King\s*Gizzard/i.test(text)) {
+      const hit = text.match(/.{0,40}King\s*Gizzard.{0,40}/i)[0];
+      throw new Error(`nombre largo sin abreviar: «${hit.trim()}»`);
+    }
+    if (!text.includes('KGLW')) throw new Error('no aparece KGLW por ninguna parte');
+  });
   await page.screenshot({ path: `${OUT}/01-home.png` });
 
   console.log('\n== Grabación y reproducción ==');
@@ -169,6 +177,13 @@ const PNG = Buffer.from(
   await step('títulos y duraciones', async () => {
     const row = await page.locator('.track').first().textContent();
     if (!row.includes('Rattlesnake') || !row.includes('3:20')) throw new Error(`fila: ${row.trim()}`);
+  });
+  await step('la vista de grabación también abrevia', async () => {
+    const text = await page.locator('.view').innerText();
+    if (/King\s*Gizzard/i.test(text)) throw new Error('nombre largo en la vista de grabación');
+    if (!(await page.locator('.track__meta').first().textContent()).includes('KGLW')) {
+      throw new Error('la fila de tema no muestra KGLW');
+    }
   });
   await page.screenshot({ path: `${OUT}/02-album.png` });
 
@@ -189,6 +204,7 @@ const PNG = Buffer.from(
       return m ? { title: m.title, artist: m.artist, album: m.album, art: m.artwork.length } : null;
     });
     if (!md || md.title !== 'Rattlesnake' || md.art < 1) throw new Error(JSON.stringify(md));
+    if (md.artist !== 'KGLW') throw new Error(`artist = ${md.artist}`);
   });
   await step('playbackState = playing', async () => {
     const s = await page.evaluate(() => navigator.mediaSession.playbackState);
@@ -316,23 +332,64 @@ const PNG = Buffer.from(
     await p2.close();
   });
 
-  console.log('\n== Responsive ==');
-  for (const [name, width, height] of [['tablet', 800, 900], ['movil', 390, 844]]) {
+  console.log('\n== Responsive (mobile first) ==');
+
+  /* La base es el teléfono; cada punto de ruptura sólo añade. Comprobamos
+   * qué debe verse y qué no en cada escalón, en ambos sentidos. */
+  const LAYOUTS = [
+    { name: 'movil-320',  width: 320,  height: 640,  sidebar: false, tabbar: true,  ctrl: false, cols: 2 },
+    { name: 'movil-390',  width: 390,  height: 844,  sidebar: false, tabbar: true,  ctrl: false, cols: 2 },
+    { name: 'movil-576',  width: 576,  height: 800,  sidebar: false, tabbar: true,  ctrl: false },
+    { name: 'tablet-768', width: 768,  height: 900,  sidebar: true,  tabbar: false, ctrl: true, rail: true },
+    { name: 'tablet-896', width: 896,  height: 900,  sidebar: true,  tabbar: false, ctrl: true, rail: false },
+    { name: 'desktop',    width: 1440, height: 900,  sidebar: true,  tabbar: false, ctrl: true, rail: false },
+  ];
+
+  for (const L of LAYOUTS) {
     const p3 = await ctx.newPage();
-    await p3.setViewportSize({ width, height });
+    await p3.setViewportSize({ width: L.width, height: L.height });
     await p3.goto(url, { waitUntil: 'networkidle' });
     await p3.waitForSelector('.card', { timeout: 8000 });
-    await step(`sin desbordamiento horizontal (${name})`, async () => {
+
+    await step(`${L.name}: sin desbordamiento horizontal`, async () => {
       const over = await p3.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       if (over > 1) throw new Error(`desborda ${over}px`);
     });
-    if (name === 'movil') {
-      await step('barra de pestañas y play compacto en móvil', async () => {
-        if (!(await p3.locator('.tabbar').isVisible())) throw new Error('sin barra de pestañas');
-        if (!(await p3.locator('#btnPlayMobile').isVisible())) throw new Error('sin play compacto');
+
+    await step(`${L.name}: navegación correcta para el tamaño`, async () => {
+      const sidebar = await p3.locator('.sidebar').isVisible();
+      const tabbar = await p3.locator('.tabbar').isVisible();
+      if (sidebar !== L.sidebar) throw new Error(`barra lateral ${sidebar ? 'visible' : 'oculta'}, se esperaba lo contrario`);
+      if (tabbar !== L.tabbar) throw new Error(`barra de pestañas ${tabbar ? 'visible' : 'oculta'}, se esperaba lo contrario`);
+      // Exactamente una de las dos, nunca las dos ni ninguna.
+      if (sidebar === tabbar) throw new Error('barra lateral y de pestañas a la vez (o ninguna)');
+    });
+
+    await step(`${L.name}: controles del reproductor`, async () => {
+      const full = await p3.locator('#btnPlay').isVisible();
+      const compact = await p3.locator('#btnPlayMobile').isVisible();
+      if (full !== L.ctrl) throw new Error(`controles completos ${full ? 'visibles' : 'ocultos'}`);
+      if (compact === L.ctrl) throw new Error(`play compacto ${compact ? 'visible' : 'oculto'} a la vez que los completos`);
+      // Siempre hay exactamente un botón de reproducción accesible.
+      if (full === compact) throw new Error('cero o dos botones de play visibles');
+    });
+
+    if (L.rail !== undefined) {
+      await step(`${L.name}: barra lateral ${L.rail ? 'como carril de iconos' : 'desplegada'}`, async () => {
+        const labelled = await p3.locator('.brand__name').isVisible();
+        if (labelled === L.rail) throw new Error(`etiquetas ${labelled ? 'visibles' : 'ocultas'}`);
       });
     }
-    await p3.screenshot({ path: `${OUT}/08-${name}.png` });
+
+    if (L.cols) {
+      await step(`${L.name}: rejilla de ${L.cols} columnas`, async () => {
+        const cols = await p3.evaluate(() =>
+          getComputedStyle(document.querySelector('.grid')).gridTemplateColumns.split(' ').length);
+        if (cols !== L.cols) throw new Error(`${cols} columnas`);
+      });
+    }
+
+    await p3.screenshot({ path: `${OUT}/08-${L.name}.png` });
     await p3.close();
   }
 
