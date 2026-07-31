@@ -115,6 +115,18 @@ La tipografía propietaria de Spotify (SpotifyMixUI / CircularSp) no es
 distribuible, así que se declara primero y se cae a la misma pila de reserva
 que usa la app original.
 
+Dos medidas no son negociables en el teléfono, y las dos son de Safari iOS:
+
+- **El campo de búsqueda mide 16px.** Por debajo de esa cifra, Safari amplía la
+  página al enfocarlo —para leer el campo a 16px— y no la reduce al salir. Con
+  ese 114 % el viewport de maquetación deja de caber en la pantalla y la
+  interfaz se desborda por la derecha. Los 14px del diseño vuelven bajo
+  `@media (pointer: fine)`, donde ese zoom no existe.
+- **La zona segura de abajo se suma, no se descuenta.** `--safe-b` vive dentro
+  de `--tabbar-h`, así que la barra de pestañas crece con el indicador de
+  inicio en vez de comerle sitio a los iconos, y todo lo que se apila encima
+  —reproductor, cola, aviso y el alto de `.app`— se aparta solo.
+
 [design]: https://getdesign.md/spotify/design-md
 
 ## Funcionalidad

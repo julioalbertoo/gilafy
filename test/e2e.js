@@ -119,7 +119,9 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
   const errors = [];
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 
-  await ctx.route('**/archive.org/**', async (route) => {
+  /* El simulador del archivo se registra por contexto, así que vive suelto:
+     más abajo abrimos un segundo contexto (táctil) que necesita el mismo. */
+  const archiveRoute = async (route) => {
     const url = route.request().url();
     if (url.includes('advancedsearch.php')) {
       // La consulta de estudio es distinta de la del catálogo en directo.
@@ -139,7 +141,8 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
     }
     console.log('  [simulación: URL inesperada]', url);
     return route.fulfill({ status: 404, body: '' });
-  });
+  };
+  await ctx.route('**/archive.org/**', archiveRoute);
 
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`error de página: ${e.message}`));
@@ -671,6 +674,65 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
 
     await p3.screenshot({ path: `${OUT}/08-${L.name}.png` });
     await p3.close();
+  }
+
+  console.log('\n== Safari iOS ==');
+
+  /* Safari iOS amplía la página al enfocar un campo cuya letra mide menos de
+   * 16px, y al salir no la reduce: el viewport de maquetación (393px) deja de
+   * caber en la pantalla y la interfaz se desborda por la derecha. El zoom es
+   * propio de WebKit y aquí no se puede provocar, así que vigilamos la causa. */
+  {
+    const tactil = await browser.newContext({
+      viewport: { width: 393, height: 852 },
+      deviceScaleFactor: 3, isMobile: true, hasTouch: true,
+    });
+    await tactil.route('**/archive.org/**', archiveRoute);
+    const pIOS = await tactil.newPage();
+    pIOS.on('pageerror', (e) => errors.push(`error de página (táctil): ${e.message}`));
+    await pIOS.goto(url, { waitUntil: 'networkidle' });
+    await pIOS.waitForSelector('.card', { timeout: 8000 });
+
+    await step('ningún campo baja de 16px con puntero grueso', async () => {
+      const chicos = await pIOS.$$eval('input, select, textarea', (els) => els
+        .filter((el) => parseFloat(getComputedStyle(el).fontSize) < 16)
+        .map((el) => `${el.id || el.tagName} a ${getComputedStyle(el).fontSize}`));
+      if (chicos.length) throw new Error(`ampliarían la página: ${chicos.join(', ')}`);
+    });
+
+    await step('con ratón la búsqueda vuelve a los 14px del diseño', async () => {
+      const px = await page.evaluate(() => getComputedStyle(document.querySelector('#searchInput')).fontSize);
+      if (px !== '14px') throw new Error(`mide ${px}`);
+    });
+
+    /* La zona que se reserva el indicador de inicio tiene que sumarse a la
+     * barra de pestañas, no descontarse de ella: con `box-sizing: border-box`
+     * un `padding-bottom` suelto se la come a los iconos. Chromium no expone
+     * insets, así que forzamos el valor del token. */
+    await step('la zona segura se suma a la barra de pestañas', async () => {
+      const medir = (inset) => pIOS.evaluate((v) => {
+        document.documentElement.style.setProperty('--safe-b', v);
+        const tb = document.querySelector('.tabbar');
+        const cs = getComputedStyle(tb);
+        return {
+          alto: tb.getBoundingClientRect().height,
+          iconos: tb.clientHeight - parseFloat(cs.paddingBottom),
+          player: window.innerHeight - document.querySelector('#player').getBoundingClientRect().bottom,
+        };
+      }, inset);
+
+      const sin = await medir('0px');
+      const con = await medir('34px');
+      if (con.iconos !== sin.iconos) throw new Error(`los iconos pierden ${sin.iconos - con.iconos}px`);
+      if (con.alto - sin.alto !== 34) throw new Error(`la barra creció ${con.alto - sin.alto}px, esperaba 34`);
+      if (Math.round(con.player) !== Math.round(con.alto)) {
+        throw new Error(`el reproductor queda a ${con.player}px del borde y la barra mide ${con.alto}px`);
+      }
+      await pIOS.evaluate(() => document.documentElement.style.removeProperty('--safe-b'));
+    });
+
+    await pIOS.screenshot({ path: `${OUT}/09-ios.png` });
+    await tactil.close();
   }
 
   await browser.close();

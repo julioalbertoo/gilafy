@@ -55,7 +55,14 @@
   --pad:      16px;
   --sidebar:  0px;
   --player-h: 64px;
-  --tabbar-h: 60px;
+
+  /* Zona que el sistema se reserva abajo (indicador de inicio de iOS). Va
+     sumada a la altura de la barra de pestañas, no descontada de ella: con
+     `box-sizing: border-box` un `padding-bottom` suelto se la comería a las
+     etiquetas. Al vivir dentro de --tabbar-h, todo lo que se apila encima
+     —reproductor, cola, aviso y el alto de .app— se aparta ya por su cuenta. */
+  --safe-b:   env(safe-area-inset-bottom, 0px);
+  --tabbar-h: calc(60px + var(--safe-b));
 
   /* Tipografía: la familia propietaria de Spotify no es pública, así que
      replicamos la voz con la misma pila de reserva del sistema. */
@@ -156,11 +163,17 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   width: 100%;
   background: var(--bg-mid);
   color: var(--text-base);
-  font-size: 14px; font-family: inherit;
+  /* Los 16px no son estéticos, son obligatorios: por debajo de esa medida
+     Safari iOS amplía la página al enfocar el campo —para leerlo a 16px— y no
+     la reduce al salir. Con ese 114% el viewport de maquetación deja de caber
+     en la pantalla y todo se desborda por la derecha. Volvemos a los 14px del
+     diseño sólo donde hay puntero fino, que es donde ese zoom no existe. */
+  font-size: 16px; font-family: inherit;
   border: 0; border-radius: var(--r-pill);
   padding: 12px 16px 12px 46px;
   box-shadow: var(--shadow-inset);
 }
+@media (pointer: fine) { .search__input { font-size: 14px; } }
 .search__input::placeholder { color: var(--text-muted); }
 .search__input:focus { outline: 0; box-shadow: rgb(18,18,18) 0 1px 0, #fff 0 0 0 2px inset; }
 .search__input::-webkit-search-cancel-button { filter: invert(1) opacity(.5); }
@@ -547,7 +560,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   height: var(--tabbar-h);
   background: linear-gradient(180deg, #121212, #000 60%);
   border-top: 1px solid rgba(255,255,255,.06);
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: var(--safe-b);
 }
 .tabbar__item { display: grid; place-items: center; gap: 2px; color: var(--text-muted); font-size: 10px; }
 .tabbar__item:hover { text-decoration: none; }
@@ -566,7 +579,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   flex: 1;
   display: flex; flex-direction: column;
   gap: 16px;
-  padding: calc(12px + env(safe-area-inset-top)) 24px calc(20px + env(safe-area-inset-bottom));
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 24px calc(20px + var(--safe-b));
   background: linear-gradient(180deg, var(--hero) 0%, color-mix(in srgb, var(--hero) 40%, var(--bg-base)) 55%, var(--bg-base) 100%);
   transform: translateY(100%);
   transition: transform .26s cubic-bezier(.2, .8, .3, 1);
@@ -693,7 +706,9 @@ body.is-np-open { overflow: hidden; }
     --gap: 8px;
     --pad: 24px;
     --sidebar: 88px;
-    --player-h: 90px;
+    /* Sin barra de pestañas, es el reproductor quien queda pegado al borde
+       inferior: la reserva del sistema pasa a sumarse a su altura. */
+    --player-h: calc(90px + var(--safe-b));
     --tabbar-h: 0px;
   }
 
@@ -746,7 +761,7 @@ body.is-np-open { overflow: hidden; }
     inset: auto 0 0 0;
     grid-template-columns: minmax(180px, 30%) minmax(0, 1fr) minmax(180px, 30%);
     gap: 16px;
-    padding: 0 16px;
+    padding: 0 16px var(--safe-b);
   }
   .np__art { width: 56px; height: 56px; }
   .player__now { gap: 14px; }
