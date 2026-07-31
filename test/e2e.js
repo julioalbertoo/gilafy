@@ -332,6 +332,178 @@ const PNG = Buffer.from(
     await p2.close();
   });
 
+  console.log('\n== Pantalla completa (móvil) ==');
+  {
+    const m = await ctx.newPage();
+    m.on('pageerror', (e) => errors.push(`error de página (movil): ${e.message}`));
+    await m.setViewportSize({ width: 390, height: 844 });
+    await m.goto(url, { waitUntil: 'networkidle' });
+    await m.waitForSelector('.card', { timeout: 8000 });
+
+    const open = () => m.locator('#npFull').isVisible();
+
+    /* La hoja entra con una transición de 260ms. Medir su posición antes de
+     * que termine da coordenadas obsoletas, así que esperamos a que el
+     * transform sea la identidad antes de tocarla. */
+    const settled = () => m.waitForFunction(() => {
+      const el = document.querySelector('#npFullSheet');
+      if (!el || document.querySelector('#npFull').hidden) return false;
+      const t = getComputedStyle(el).transform;
+      return t === 'none' || t === 'matrix(1, 0, 0, 1, 0, 0)';
+    }, null, { timeout: 4000 });
+
+    const openSheet = async () => {
+      await m.locator('#npExpand').click();
+      await m.waitForSelector('#npFull', { state: 'visible', timeout: 4000 });
+      await settled();
+    };
+
+    const dragSheet = async (distance) => {
+      const box = await m.locator('.np-full__art-wrap').boundingBox();
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+      await m.mouse.move(x, y);
+      await m.mouse.down();
+      await m.mouse.move(x, y + distance / 2, { steps: 6 });
+      await m.mouse.move(x, y + distance, { steps: 6 });
+      await m.mouse.up();
+    };
+
+    await step('no se abre sin nada sonando', async () => {
+      await m.locator('#npExpand').click();
+      await new Promise((r) => setTimeout(r, 200));
+      if (await open()) throw new Error('se abrió con la cola vacía');
+    });
+
+    await step('pulsar la barra maximiza', async () => {
+      await m.locator('.card a').first().click();
+      await m.waitForSelector('.track', { timeout: 8000 });
+      await m.locator('#albumPlay').click();
+      await m.waitForFunction(() => !document.querySelector('#audio').paused, { timeout: 8000 });
+      await openSheet();
+      if (await m.locator('#npExpand').getAttribute('aria-expanded') !== 'true') throw new Error('aria-expanded sin actualizar');
+    });
+
+    await step('muestra la misma pista que la barra', async () => {
+      const bar = await m.locator('#npTitle').textContent();
+      const full = await m.locator('.np-full__title').textContent();
+      if (bar !== full) throw new Error(`barra «${bar}» ≠ pantalla «${full}»`);
+      if (!(await m.locator('.np-full__art').getAttribute('src'))) throw new Error('sin carátula');
+    });
+
+    await step('la carátula llena el hueco y es cuadrada', async () => {
+      const { art, wrap } = await m.evaluate(() => {
+        const r = (el) => { const b = el.getBoundingClientRect(); return { w: Math.round(b.width), h: Math.round(b.height) }; };
+        return { art: r(document.querySelector('.np-full__art')), wrap: r(document.querySelector('.np-full__art-wrap')) };
+      });
+      if (Math.abs(art.w - art.h) > 2) throw new Error(`no es cuadrada: ${art.w}×${art.h}`);
+      if (art.w > wrap.w + 1 || art.h > wrap.h + 1) throw new Error(`se sale del hueco: ${art.w}×${art.h} en ${wrap.w}×${wrap.h}`);
+      // Debe ocupar el lado corto del hueco, no quedarse en su tamaño natural.
+      const target = Math.min(wrap.w, wrap.h);
+      if (art.w < target - 2) throw new Error(`se queda pequeña: ${art.w}px de ${target}px disponibles`);
+    });
+    await m.screenshot({ path: `${OUT}/09-nowplaying.png` });
+
+    await step('el tiempo restante va en negativo', async () => {
+      const left = await m.locator('.js-time-left').textContent();
+      if (!/^-\d+:\d\d$/.test(left)) throw new Error(`restante = «${left}»`);
+    });
+
+    await step('sus controles mueven la reproducción real', async () => {
+      await m.locator('.np-full__play').click();
+      await m.waitForFunction(() => document.querySelector('#audio').paused, { timeout: 4000 });
+      await m.locator('.np-full__play').click();
+      await m.waitForFunction(() => !document.querySelector('#audio').paused, { timeout: 4000 });
+    });
+
+    await step('los dos aleatorios quedan sincronizados', async () => {
+      // El aleatorio de la barra está oculto en móvil, así que el "otro lado"
+      // es el atajo de teclado, que actúa sobre el control de la barra.
+      await m.locator('.np-full__ctrl [data-ctrl="shuffle"]').click();
+      const bar = await m.locator('#btnShuffle').getAttribute('aria-pressed');
+      const full = await m.locator('.np-full__ctrl [data-ctrl="shuffle"]').getAttribute('aria-pressed');
+      if (bar !== 'true' || full !== 'true') throw new Error(`barra=${bar} pantalla=${full}`);
+
+      await m.keyboard.press('s');              // deshacer desde el otro lado
+      await m.waitForFunction(() =>
+        document.querySelector('.np-full__ctrl [data-ctrl="shuffle"]').getAttribute('aria-pressed') === 'false',
+      null, { timeout: 3000 }).catch(() => { throw new Error('la pantalla completa no siguió a la barra'); });
+      if (await m.locator('#btnShuffle').getAttribute('aria-pressed') !== 'false') throw new Error('la barra quedó descuadrada');
+    });
+
+    await step('el corazón se sincroniza en ambos sentidos', async () => {
+      await m.locator('.np-full__like').click();
+      if (!(await m.locator('#btnLike').getAttribute('class')).includes('is-on')) throw new Error('la barra no reflejó el me gusta');
+      await m.locator('.np-full__like').click();
+    });
+
+    await step('avanzar de pista actualiza la pantalla completa', async () => {
+      const before = await m.locator('.np-full__title').textContent();
+      await m.locator('.np-full__ctrl [data-ctrl="next"]').click();
+      await m.waitForFunction((b) => document.querySelector('.np-full__title').textContent !== b, before, { timeout: 6000 });
+    });
+
+    await step('el chevrón cierra', async () => {
+      await m.locator('#npFullClose').click();
+      await m.waitForSelector('#npFull', { state: 'hidden', timeout: 4000 });
+    });
+
+    await step('Escape cierra', async () => {
+      await openSheet();
+      await m.keyboard.press('Escape');
+      await m.waitForSelector('#npFull', { state: 'hidden', timeout: 4000 });
+    });
+
+    await step('el botón atrás cierra sin cambiar de vista', async () => {
+      const hash = await m.evaluate(() => location.hash);
+      await openSheet();
+      await m.goBack();
+      await m.waitForSelector('#npFull', { state: 'hidden', timeout: 4000 });
+      const after = await m.evaluate(() => location.hash);
+      if (after !== hash) throw new Error(`la vista cambió: ${hash} → ${after}`);
+    });
+
+    await step('cerrar no deja basura en el historial', async () => {
+      const hash = await m.evaluate(() => location.hash);
+      await openSheet();
+      await m.locator('#npFullClose').click();
+      await m.waitForSelector('#npFull', { state: 'hidden', timeout: 4000 });
+      await new Promise((r) => setTimeout(r, 300));
+      // Tras cerrar con el chevrón, atrás debe salir de la vista, no reabrir.
+      await m.goBack();
+      await new Promise((r) => setTimeout(r, 300));
+      if (await m.locator('#npFull').isVisible()) throw new Error('atrás reabrió la pantalla completa');
+      if (await m.evaluate(() => location.hash) === hash) throw new Error('atrás no navegó: quedó una entrada de más');
+    });
+
+    await step('arrastrar hacia abajo descarta', async () => {
+      await m.evaluate(() => { history.forward(); });
+      await new Promise((r) => setTimeout(r, 300));
+      await openSheet();
+      await dragSheet(200);
+      await m.waitForSelector('#npFull', { state: 'hidden', timeout: 4000 });
+    });
+
+    await step('un arrastre corto no descarta', async () => {
+      await openSheet();
+      await dragSheet(40);
+      await new Promise((r) => setTimeout(r, 400));
+      if (!(await open())) throw new Error('se cerró con 40px de arrastre');
+      const t = await m.evaluate(() => document.querySelector('#npFullSheet').style.transform);
+      if (t && t !== 'none') throw new Error(`el arrastre no volvió a su sitio: ${t}`);
+      await m.locator('#npFullClose').click();
+    });
+
+    await m.close();
+  }
+
+  await step('en escritorio no hay pantalla completa', async () => {
+    if (await page.locator('#npExpand').isVisible()) throw new Error('el disparador es visible en escritorio');
+    await page.evaluate(() => document.querySelector('#npExpand').click());
+    await new Promise((r) => setTimeout(r, 250));
+    if (await page.locator('#npFull').isVisible()) throw new Error('se abrió en escritorio');
+  });
+
   console.log('\n== Responsive (mobile first) ==');
 
   /* La base es el teléfono; cada punto de ruptura sólo añade. Comprobamos

@@ -488,7 +488,12 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   background: #000;
 }
 
-.player__now { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.player__now { position: relative; display: flex; align-items: center; gap: 12px; min-width: 0; }
+
+/* Capa invisible sobre carátula y textos: pulsarla maximiza. Deja fuera el
+   corazón, que queda por encima con su propio z-index. */
+.np__expand { position: absolute; inset: 0; z-index: 1; background: none; }
+.player__now > .icon-btn { position: relative; z-index: 2; }
 .np__art { width: 44px; height: 44px; border-radius: var(--r-sm); object-fit: cover; background: var(--bg-card); flex: none; }
 .np__meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .np__title { font-size: 14px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -537,6 +542,117 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .tabbar__item { display: grid; place-items: center; gap: 2px; color: var(--text-muted); font-size: 10px; }
 .tabbar__item:hover { text-decoration: none; }
 .tabbar__item.is-active { color: var(--text-base); font-weight: 700; }
+
+/* ── Reproduciendo ahora, a pantalla completa ─────────────── */
+/* Se abre al pulsar la barra inferior. Cubre todo, incluida la barra de
+   pestañas, y se cierra con el chevrón, con Escape, con el botón atrás del
+   sistema o arrastrando hacia abajo. */
+.np-full {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex;
+  overflow: hidden;
+}
+.np-full__sheet {
+  flex: 1;
+  display: flex; flex-direction: column;
+  gap: 16px;
+  padding: calc(12px + env(safe-area-inset-top)) 24px calc(20px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, var(--hero) 0%, color-mix(in srgb, var(--hero) 40%, var(--bg-base)) 55%, var(--bg-base) 100%);
+  transform: translateY(100%);
+  transition: transform .26s cubic-bezier(.2, .8, .3, 1);
+  touch-action: none;      /* el gesto vertical lo gestionamos nosotros */
+  user-select: none;       /* arrastrar no debe seleccionar el título */
+  -webkit-user-select: none;
+}
+.np-full.is-open .np-full__sheet { transform: translateY(0); }
+
+.np-full__head {
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px;
+  align-items: center; gap: 8px;
+  flex: none;
+}
+.np-full__context {
+  text-align: center;
+  font-size: 14px; font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.np-full__head .icon-btn { color: var(--text-base); }
+
+/* La carátula ocupa el espacio sobrante sin empujar a los controles. */
+.np-full__art-wrap {
+  flex: 1; min-height: 0;
+  display: grid; place-items: center;
+  padding: 8px 0;
+  container-type: size;    /* referencia para el min() de abajo */
+}
+
+/* El cuadrado más grande que quepa en el hueco.
+   `aspect-ratio` sólo deriva el eje que no se declara, así que fijar sólo
+   `max-width`/`max-height` deja la imagen a su tamaño intrínseco (diminuto en
+   las miniaturas del archivo) y fijar una altura del 100% la deforma cuando
+   el hueco es más estrecho que alto. Con el contenedor como referencia, el
+   lado es directamente el menor de sus dos dimensiones. */
+.np-full__art {
+  width: 100%;                        /* reserva si no hay unidades cq */
+  width: min(100cqw, 100cqh);
+  height: auto;
+  aspect-ratio: 1; object-fit: cover;
+  border-radius: var(--r-lg);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-heavy);
+  -webkit-user-drag: none;
+}
+
+.np-full__meta { display: flex; align-items: center; gap: 16px; flex: none; }
+.np-full__text { min-width: 0; flex: 1; }
+.np-full__title {
+  font-family: var(--font-title);
+  font-size: 24px; font-weight: 700; line-height: 1.2;
+  margin: 0 0 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.np-full__artist {
+  font-size: 16px; color: var(--text-muted); margin: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.np-full__like { flex: none; color: var(--text-muted); }
+
+.np-full__bar { flex: none; }
+.np-full__bar .range { padding: 8px 0; }
+.np-full__times {
+  display: flex; justify-content: space-between;
+  font-size: 12px; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.np-full__ctrl {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; flex: none;
+  padding: 4px 0;
+}
+.np-full__ctrl .icon-btn { color: var(--text-base); }
+.np-full__ctrl .icon-btn:not(.is-on) svg { opacity: .9; }
+.np-full__play { width: 64px; height: 64px; }
+
+.np-full__foot {
+  display: flex; align-items: center; justify-content: space-between;
+  flex: none;
+}
+.np-full__foot .icon-btn:hover { text-decoration: none; }
+
+/* Con la hoja abierta, el fondo no debe desplazarse. */
+body.is-np-open { overflow: hidden; }
+
+/* En escritorio la barra ya lo muestra todo: no hay nada que maximizar. */
+@media (min-width: 768px) {
+  .np-full, .np__expand { display: none !important; }
+}
+
+/* Pantallas muy bajas: la carátula cede espacio antes que los controles. */
+@media (max-height: 600px) {
+  .np-full__sheet { gap: 10px; }
+  .np-full__title { font-size: 20px; }
+}
 
 /* ── Toast ────────────────────────────────────────────────── */
 .toast {

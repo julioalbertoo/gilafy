@@ -13,7 +13,6 @@ y conserva el nombre completo sólo en las consultas, que es donde tiene que
 coincidir literalmente.
 
 **▶ En vivo: <https://julioalbertoo.github.io/gilafy/>**
-(requiere activar Pages una vez — ver [Despliegue](#despliegue))
 
 Sin dependencias, sin build, sin claves de API: son ficheros estáticos. Abre
 `index.html` desde cualquier servidor web y funciona.
@@ -111,8 +110,38 @@ que usa la app original.
 - La sesión se restaura al recargar: misma cola, misma pista, mismo segundo
 - Estados de carga (*skeletons*), de error y de vacío
 - Mobile first, de 320 px a escritorio, con barra de pestañas en el teléfono
+- Pantalla completa de reproducción al pulsar la barra inferior (ver abajo)
 - Service worker que cachea sólo el *app shell* — nunca el audio, para no
   romper las peticiones `Range` que necesita el desplazamiento dentro del tema
+
+### Pantalla completa de reproducción
+
+En el teléfono, pulsar la barra inferior la maximiza, como en la app original:
+carátula grande, tiempo restante en negativo y controles completos. Se cierra
+con el chevrón, con `Escape`, con el botón atrás del sistema o arrastrando
+hacia abajo.
+
+No duplica lógica. Los dos conjuntos de controles declaran `data-ctrl="…"` y
+un único manejador los ata a todos; cada dato que se pinta lleva una clase
+`.js-*` y se escribe sobre todos los elementos que la declaran. Por eso el
+aleatorio, el corazón o la barra de progreso quedan sincronizados en ambos
+sentidos sin código de sincronización.
+
+Detalles que costaron un intento cada uno:
+
+- Abrir añade una entrada al historial, de modo que el botón atrás cierra la
+  hoja en lugar de cambiar de vista. Al cerrar por cualquier otra vía se
+  deshace esa entrada, para no dejar basura navegable.
+- La carátula se dimensiona con unidades de contenedor (`min(100cqw, 100cqh)`).
+  `aspect-ratio` sólo deriva el eje que no se declara: con sólo `max-width` y
+  `max-height` la imagen sale a su tamaño intrínseco —las miniaturas del
+  archivo son diminutas— y con una altura del 100% se deforma cuando el hueco
+  es más estrecho que alto.
+- Arrastrar una imagen dispara el drag-and-drop nativo del navegador, que se
+  come los `pointermove`/`pointerup` y deja el gesto colgado. Hace falta
+  `draggable="false"`, cancelar `dragstart` y capturar el puntero.
+
+En escritorio no existe: la barra ya muestra todos los controles.
 
 ### Atajos de teclado
 
@@ -125,20 +154,18 @@ que usa la app original.
 | `M` | Silenciar |
 | `S` / `R` | Aleatorio / repetición |
 | `/` | Enfocar la búsqueda |
+| `Esc` | Cerrar la pantalla completa |
 
 ## Despliegue
 
 `.github/workflows/pages.yml` publica la app en GitHub Pages en cada push a
-`main`. Hace falta activarlo **una sola vez**, porque el `GITHUB_TOKEN` de
-Actions no tiene permiso para crear el sitio por sí mismo:
+`main`. Ya está activo: <https://julioalbertoo.github.io/gilafy/>.
 
-1. **Ajustes → Pages → Build and deployment → Source: _GitHub Actions_**
-2. Si Actions está en sólo lectura, **Ajustes → Actions → General → Workflow
-   permissions: _Read and write permissions_**
-3. Vuelve a lanzar el workflow (pestaña Actions → *Re-run all jobs*), o
-   simplemente haz otro push.
-
-A partir de ahí queda en <https://julioalbertoo.github.io/gilafy/>.
+Si alguna vez hay que rehacerlo en otro repositorio, el `GITHUB_TOKEN` de
+Actions no puede crear el sitio por sí mismo, así que la primera vez toca
+activarlo a mano en **Ajustes → Pages → Source: _GitHub Actions_** (y, si
+Actions está en sólo lectura, en **Ajustes → Actions → General → Workflow
+permissions: _Read and write permissions_**).
 
 ## Ejecutar en local
 
@@ -157,9 +184,9 @@ Y abre `http://localhost:8000`.
 
 `test/e2e.js` levanta la app en un Chromium sin cabeza, simula las respuestas
 de archive.org (búsqueda, metadatos, carátulas y un WAV sintético) y verifica
-52 escenarios: reproducción, avance automático, continuidad con la pestaña
+68 escenarios: reproducción, avance automático, continuidad con la pestaña
 oculta, metadatos de Media Session, cola, persistencia, búsqueda, estado de
-error y abreviatura del nombre.
+error, pantalla completa y abreviatura del nombre.
 
 La parte responsive recorre seis anchos (320 · 390 · 576 · 768 · 896 · 1440) y
 en cada uno comprueba en ambos sentidos qué debe verse y qué no: exactamente
