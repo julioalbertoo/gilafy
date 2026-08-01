@@ -363,10 +363,6 @@ function dedupe(docs) {
   return [...seen.values()];
 }
 
-/**
- * Descarga el catálogo probando las consultas en orden hasta que
- * una devuelva resultados. Cachea el resultado y la consulta ganadora.
- */
 /** Copia guardada del catálogo, o null si está caducada o es de otra versión. */
 function cachedCatalog({ ignoreAge = false } = {}) {
   const cached = store.get('catalog', null);
@@ -390,14 +386,18 @@ function shortenDoc(doc) {
   };
 }
 
-async function loadCatalog({ force = false } = {}) {
-  if (!force) {
-    const cached = cachedCatalog();
-    if (cached) {
-      state.catalog = cached;
-      return state.catalog;
-    }
-  }
+/**
+ * Descarga el catálogo probando las consultas en orden hasta que una devuelva
+ * resultados. Cachea el resultado y la consulta ganadora.
+ *
+ * La búsqueda del archivo tarda segundos, y aquí hacen falta tres: directos,
+ * discos liberados y novedades. Encadenarlas sumaba las tres esperas, así que
+ * cada una sale en cuanto tiene lo que necesita y se recogen al final.
+ */
+async function fetchCatalog() {
+  // Se lanza antes del bucle, no dentro: no depende de qué consulta gane, y
+  // así viaja en paralelo con la del catálogo en lugar de detrás.
+  const studio = loadStudio();
 
   const known = store.get('query', null);
   const attempts = known ? [known, ...QUERIES.filter((q) => q !== known)] : QUERIES;
@@ -408,8 +408,12 @@ async function loadCatalog({ force = false } = {}) {
       const data = await getJSON(searchURL(query));
       const live = (data?.response?.docs || []).filter((d) => d.identifier).map(normalizeDoc);
       if (live.length) {
+        // Las novedades se piden en cuanto sabemos qué consulta vale —las
+        // necesitan—, no después de resolver lo demás: así se solapan con lo
+        // que le quede a la de estudio en lugar de sumarse a la cuenta.
+        const recent = loadRecent(query);
         // Los discos liberados van primero: son el material «de catálogo».
-        const docs = dedupe([...await loadStudio(), ...live, ...await loadRecent(query)]);
+        const docs = dedupe([...await studio, ...live, ...await recent]);
         state.catalog = docs;
         store.set('query', query);
         store.set('catalog', { v: DATA_VERSION, ts: Date.now(), docs });
@@ -427,6 +431,76 @@ async function loadCatalog({ force = false } = {}) {
     return state.catalog;
   }
   throw lastError || new Error('El archivo no devolvió resultados.');
+}
+
+/* La descarga en curso, para que quien la pida mientras tanto se sume a ella.
+   Al arrancar hay dos peticiones a la vez —la vista y la estantería—, y sin
+   esto cada una disparaba su propia tanda de búsquedas. */
+let catalogInFlight = null;
+
+/* Si ya nos hemos puesto al día en esta visita. Guardar el catálogo puede
+   fallar —cuota de localStorage llena, que con 300 grabaciones no es
+   descabellado—, y entonces la copia leída sigue saliendo caducada: sin esta
+   marca, cada repintado pediría otra actualización, y así sin parar. */
+let catalogRevalidated = false;
+
+/**
+ * Catálogo listo para pintar.
+ *
+ * Si hay copia guardada se devuelve **siempre** en el acto, incluso caducada,
+ * y la actualización viaja por detrás: esperar a la red con la pantalla en
+ * esqueletos es lo que hacía que la portada tardara una eternidad cada vez que
+ * caducaba la copia. `force` es del botón de reintentar, que sí quiere esperar.
+ */
+function loadCatalog({ force = false } = {}) {
+  if (!force) {
+    const fresh = cachedCatalog();
+    if (fresh) {
+      state.catalog = fresh;
+      return Promise.resolve(state.catalog);
+    }
+    const stale = cachedCatalog({ ignoreAge: true });
+    if (stale) {
+      state.catalog = stale;
+      refreshInBackground();
+      return Promise.resolve(state.catalog);
+    }
+  }
+  return refreshCatalog();
+}
+
+/** Relanza la descarga, o se engancha a la que ya esté en marcha. */
+function refreshCatalog() {
+  if (!catalogInFlight) {
+    catalogInFlight = fetchCatalog()
+      .finally(() => { catalogInFlight = null; catalogRevalidated = true; });
+  }
+  return catalogInFlight;
+}
+
+/** Se pone al día por detrás, una sola vez por visita y sin que nadie espere. */
+function refreshInBackground() {
+  if (catalogRevalidated || catalogInFlight) return;
+  // Si la actualización falla nos quedamos con lo que ya se está viendo: por
+  // detrás no hay a quién avisar.
+  refreshCatalog().then(onCatalogRefreshed, () => { /* seguimos con la copia */ });
+}
+
+/**
+ * Recoge el catálogo que llegó por detrás sin dar un tirón a quien está
+ * leyendo: la estantería se repinta siempre —está fuera de la columna
+ * principal— y la vista sólo si nadie ha bajado todavía. Si ya se ha
+ * desplazado, lo nuevo entra en la siguiente navegación.
+ */
+function onCatalogRefreshed() {
+  renderShelf();
+  if (viewEl.scrollTop > 0) return;
+  switch (state.route.name) {
+    case 'home':    viewHome(); break;
+    case 'search':  viewSearch(state.route.param); break;
+    case 'library': viewLibrary(); break;
+    // La grabación se pinta desde su propio item, no desde el catálogo.
+  }
 }
 
 /** Metadatos + pistas reproducibles de un item. */

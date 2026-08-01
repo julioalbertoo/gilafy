@@ -95,6 +95,29 @@ directo de hace años. La segunda consulta es la misma, ordenada por fecha
 también la ordenación con la que la app pinta las secciones, así que lo que
 llega de esa tanda es exactamente lo que va arriba.
 
+### Cuánto se espera al archivo
+
+La búsqueda del archivo tarda segundos, no milisegundos, y la portada no pinta
+nada hasta tenerla. Con tres consultas por delante —directos, discos liberados
+y novedades—, encadenarlas sumaba las tres esperas. Tres reglas lo evitan:
+
+- **Una sola descarga en vuelo.** Al arrancar piden catálogo la vista y la
+  estantería a la vez; ambas se suman a la misma (`refreshCatalog`) en lugar de
+  lanzar cada una su propia tanda de búsquedas.
+- **Las consultas se solapan.** `loadStudio()` no depende de cuál gane, así que
+  sale antes del bucle; `loadRecent()` necesita la consulta ganadora y sale en
+  cuanto se conoce, sin esperar a que la de estudio haya vuelto. Sólo queda una
+  ida y vuelta encadenada, la que de verdad lo está.
+- **La copia guardada se enseña siempre en el acto**, aunque esté caducada, y
+  la actualización viaja por detrás. Caducada no es inservible: pasadas las 12 h
+  del TTL, esperar a la red con la pantalla en esqueletos era lo que hacía que
+  abrir la app se sintiera roto. Cuando llega lo nuevo entra solo, y si el
+  usuario ya ha bajado por la lista no se le repinta debajo: espera a la
+  siguiente navegación.
+
+El botón de reintentar del estado de error sí fuerza la espera
+(`loadCatalog({ force: true })`): ahí actualizar es justo lo que se ha pedido.
+
 ## Reproducción en segundo plano
 
 Es el requisito central, y descansa en cuatro decisiones:

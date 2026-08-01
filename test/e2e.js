@@ -1006,6 +1006,107 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
     await tactil.close();
   }
 
+  /* La búsqueda del archivo tarda segundos de verdad, y el simulador contesta
+   * al instante: sin frenarlo a propósito, aquí no se nota si la portada pide
+   * lo mismo dos veces o encadena esperas que caben en paralelo.
+   *
+   * Va en su propio contexto y la última: estas comprobaciones vacían y
+   * siembran `localStorage`, y el resto de la suite comparte origen con la
+   * página que sigue sonando desde el principio. */
+  console.log('\n== Rapidez de la portada ==');
+  {
+    const LATENCIA = 1500;
+    const rapidez = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await rapidez.route('**/archive.org/**', archiveRoute);
+
+    /** Página con el archivo simulado lento, que además apunta cada búsqueda.
+     *  Sólo intercepta la búsqueda: carátulas y metadatos siguen cayendo en el
+     *  simulador del contexto, que responde al momento. */
+    const paginaLenta = async () => {
+      const p = await rapidez.newPage();
+      p.on('pageerror', (e) => errors.push(`error de página (rapidez): ${e.message}`));
+      const busquedas = [];
+      await p.route('**/advancedsearch.php**', async (route) => {
+        const query = decodeURIComponent(route.request().url());
+        const studio = /polygondwanaland/i.test(query);
+        const porFecha = /sort\[\]=date/.test(query);
+        busquedas.push({ tipo: studio ? 'estudio' : porFecha ? 'novedades' : 'catálogo', t: Date.now() });
+        await new Promise((r) => setTimeout(r, LATENCIA));
+        const docs = studio ? STUDIO : porFecha ? [RECIENTE, ...SHOWS] : SHOWS;
+        await route.fulfill({ contentType: 'application/json',
+          body: JSON.stringify({ response: { numFound: docs.length, docs } }) });
+      });
+      return { p, busquedas };
+    };
+
+    const { p: pFria, busquedas } = await paginaLenta();
+    await pFria.addInitScript(() => localStorage.clear());
+    const t0 = Date.now();
+    await pFria.goto(url, { waitUntil: 'domcontentloaded' });
+    await pFria.waitForSelector('.pubs .pub', { timeout: 20000 });
+    const pintado = Date.now() - t0;
+
+    await step('cada búsqueda se pide una sola vez', async () => {
+      /* Al arrancar piden catálogo la vista y la estantería, cada una por su
+       * lado. Si no se suman a la misma descarga, todo se pide por duplicado. */
+      const tipos = busquedas.map((b) => b.tipo).sort().join(', ');
+      if (busquedas.length !== 3) {
+        throw new Error(`${busquedas.length} búsquedas (${tipos}), esperaba 3: catálogo, estudio y novedades`);
+      }
+    });
+
+    await step('las búsquedas se solapan en vez de encadenarse', async () => {
+      /* Estudio no depende de nada y sale con la del catálogo; novedades
+       * necesita la consulta ganadora, así que como mucho hay dos idas y
+       * vueltas encadenadas, nunca tres. */
+      const t = (tipo) => busquedas.find((b) => b.tipo === tipo)?.t;
+      const hueco = t('estudio') - t('catálogo');
+      if (Math.abs(hueco) >= LATENCIA) {
+        throw new Error(`estudio salió ${hueco} ms después del catálogo: va detrás, no a la vez`);
+      }
+      if (pintado >= LATENCIA * 3) {
+        throw new Error(`la portada tardó ${pintado} ms: son las tres esperas sumadas`);
+      }
+    });
+    await pFria.close();
+
+    await step('con copia caducada la portada pinta sin esperar a la red', async () => {
+      /* Caducada no es inservible: enseñarla ya y actualizarla por detrás es
+       * la diferencia entre abrir la app y mirar esqueletos varios segundos. */
+      const { p, busquedas: refresco } = await paginaLenta();
+      await p.addInitScript((version) => {
+        localStorage.clear();
+        localStorage.setItem('gilafy.catalog', JSON.stringify({
+          v: version, ts: Date.now() - 13 * 60 * 60 * 1000,   // el TTL son 12 h
+          docs: [{
+            id: 'guardado', title: 'KGLW Live at Anthem', kind: 'live', creator: 'KGLW',
+            date: '2022-10-23T00:00:00Z', year: '2022', place: 'Washington, DC',
+            downloads: 1, art: 'https://archive.org/services/img/guardado',
+          }],
+        }));
+      }, DATA_VERSION);
+
+      const t = Date.now();
+      await p.goto(url, { waitUntil: 'domcontentloaded' });
+      await p.waitForSelector('.pubs .pub', { timeout: 20000 });
+      const ms = Date.now() - t;
+      if (ms >= LATENCIA) throw new Error(`tardó ${ms} ms en pintar lo que ya tenía guardado`);
+
+      const primero = await p.locator('.pub__title').first().textContent();
+      if (!primero.includes('Anthem')) throw new Error(`no pintó la copia guardada, sino «${primero}»`);
+
+      // Y lo nuevo entra solo, sin que el usuario toque nada.
+      await p.waitForSelector('.pub__title:has-text("Red Rocks")', { timeout: 20000 });
+      if (!refresco.length) throw new Error('no se refrescó por detrás');
+      if (await p.locator('.pub__title:has-text("Anthem")').count()) {
+        throw new Error('la copia caducada sigue en pantalla tras el refresco');
+      }
+      await p.close();
+    });
+
+    await rapidez.close();
+  }
+
   await browser.close();
   server.close();
 
