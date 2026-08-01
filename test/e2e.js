@@ -50,6 +50,12 @@ const SHOWS = [
   { identifier: 'kglw2018-08-08.dsbd', title: 'King Gizzard Live in Barcelona 2018-08-08', date: '2018-08-08T00:00:00Z', year: '2018', creator: 'King Gizzard & The Lizard Wizard', coverage: 'Barcelona, ES', venue: 'Razzmatazz', downloads: 12000, avg_rating: '3.9', publicdate: '2018-09-01T00:00:00Z' },
 ];
 
+/* Lo recién subido, que es justo lo que la ordenación por descargas esconde:
+ * el concierto más reciente del simulacro es también el menos descargado, así
+ * que sólo aparece en la tanda ordenada por fecha. Si la app se olvidara de
+ * pedirla, «Última publicación» seguiría anclada en el directo de 2023. */
+const RECIENTE = { identifier: 'kglw2026-05-20.aud', title: 'King Gizzard Live in Sofia 2026-05-20', date: '2026-05-20T00:00:00Z', year: '2026', creator: 'King Gizzard & The Lizard Wizard', coverage: 'Sofía, BG', venue: 'NDK', downloads: 12, avg_rating: '0.0', publicdate: '2026-05-25T00:00:00Z' };
+
 const TITLES = ['Rattlesnake', 'Robot Stop', 'The River', 'Crumbling Castle'];
 
 /* El archivo suele tener varias subidas del mismo disco liberado; la app debe
@@ -78,7 +84,7 @@ const STUDIO_TITLES = ['Polygondwanaland', 'Teenage Gizzard', 'Demos Vol. 1 + Vo
 /** Cada tema aparece en tres formatos, como en el archivo real: la app debe
  *  quedarse con un único derivado reproducible por pista. */
 function metaFor(id) {
-  const show = SHOWS.find((s) => s.identifier === id) || SHOWS[0];
+  const show = [...SHOWS, RECIENTE].find((s) => s.identifier === id) || SHOWS[0];
   const files = [];
   TITLES.forEach((title, i) => {
     const stem = `${id}t${String(i + 1).padStart(2, '0')}`;
@@ -149,9 +155,12 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
   const archiveRoute = async (route) => {
     const url = route.request().url();
     if (url.includes('advancedsearch.php')) {
-      // La consulta de estudio es distinta de la del catálogo en directo.
-      const studio = /polygondwanaland/i.test(decodeURIComponent(url));
-      const docs = studio ? STUDIO : SHOWS;
+      // La consulta de estudio es distinta de la del catálogo en directo, y
+      // ésta se pide dos veces: por descargas y, para las novedades, por fecha.
+      const query = decodeURIComponent(url);
+      const studio = /polygondwanaland/i.test(query);
+      const porFecha = /sort\[\]=date/.test(query);
+      const docs = studio ? STUDIO : porFecha ? [RECIENTE, ...SHOWS] : SHOWS;
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ response: { numFound: docs.length, docs } }) });
     }
     if (url.includes('/metadata/')) {
@@ -185,8 +194,9 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
   await step('el catálogo llega a la estantería', async () => {
     await page.waitForSelector('.shelf__item', { timeout: 8000 });
     const n = await page.locator('.shelf__item').count();
-    // Los directos más los discos de estudio que sobreviven a la criba.
-    const esperados = SHOWS.length + STUDIO_TITLES.length;
+    // Los directos —incluida la novedad que sólo trae la tanda por fecha—
+    // más los discos de estudio que sobreviven a la criba.
+    const esperados = SHOWS.length + 1 + STUDIO_TITLES.length;
     if (n !== esperados) throw new Error(`esperaba ${esperados} items, hay ${n}`);
   });
 
@@ -255,6 +265,16 @@ if (!DATA_VERSION) throw new Error('no se pudo leer DATA_VERSION de app.js');
     const titles = await page.locator('.section__title').allTextContents();
     for (const wanted of ['Última publicación', 'Álbumes', 'Directos']) {
       if (!titles.includes(wanted)) throw new Error(`falta «${wanted}»: ${titles.join(' | ')}`);
+    }
+  });
+  await step('la última publicación es la más reciente, no la más descargada', async () => {
+    /* El archivo se pide por descargas, así que un concierto recién subido
+     * —cero descargas— sólo llega por la tanda ordenada por fecha. Es el
+     * caso que rompía: la sección se quedaba en el directo popular de 2023. */
+    const destacada = page.locator('.section', { has: page.locator('.section__title:text-is("Última publicación")') });
+    const texto = await destacada.locator('.pub').first().innerText();
+    if (!texto.includes('Sofia') && !texto.includes('Sofía')) {
+      throw new Error(`destaca «${texto.replace(/\n/g, ' · ')}» en vez del directo de 2026`);
     }
   });
   await step('filas de publicación renderizadas', async () => {

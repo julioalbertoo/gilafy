@@ -84,6 +84,17 @@ El identificador exacto de la colección ha cambiado alguna vez, así que
 texto libre) y se queda con la primera que devuelva resultados, recordándola en
 `localStorage` para las siguientes visitas.
 
+**El catálogo se pide dos veces, y por eso se ven las novedades.** La consulta
+principal ordena por descargas: es lo que da una muestra buena del archivo
+entero —las grabaciones mejor conservadas de cada gira y cada ciudad, que es lo
+que hace útil el buscador—, pero por construcción esconde lo recién subido. Un
+concierto de este mes entra al archivo con cero descargas y no aparece ni
+pidiendo miles de filas, así que *Última publicación* se quedaba anclada en un
+directo de hace años. La segunda consulta es la misma, ordenada por fecha
+(`CATALOG_RECENT_ROWS`), y las dos listas se juntan quitando los repetidos. Es
+también la ordenación con la que la app pinta las secciones, así que lo que
+llega de esa tanda es exactamente lo que va arriba.
+
 ## Reproducción en segundo plano
 
 Es el requisito central, y descansa en cuatro decisiones:

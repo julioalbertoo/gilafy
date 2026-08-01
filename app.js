@@ -23,6 +23,16 @@ const IA = 'https://archive.org';
    consultar el archivo, que es donde tiene que coincidir literalmente. */
 const ARTIST = 'KGLW';
 const CATALOG_ROWS = 300;
+
+/* El catálogo se pide por descargas, que es lo que da una muestra buena del
+   archivo entero —las grabaciones mejor conservadas de cada gira y ciudad—,
+   pero deja fuera lo recién subido: un concierto de este mes no ha tenido
+   tiempo de acumular descargas y nunca entra en las primeras filas, por
+   muchas que se pidan. Así que se pide una segunda tanda ordenada por fecha
+   y se juntan las dos: la muestra por descargas para explorar, y las últimas
+   por fecha para que «Última publicación» sea de verdad la última. */
+const CATALOG_RECENT_ROWS = 120;
+
 const CATALOG_TTL = 12 * 60 * 60 * 1000;   // 12 h
 
 /* Lo que se guarda en localStorage son datos YA procesados (títulos
@@ -30,7 +40,7 @@ const CATALOG_TTL = 12 * 60 * 60 * 1000;   // 12 h
    las copias viejas seguirían pintándose hasta que caduquen. Subir esta
    versión las descarta. Las preferencias del usuario —me gusta, historial,
    volumen— no llevan versión y sobreviven a los cambios. */
-const DATA_VERSION = 5;
+const DATA_VERSION = 6;
 
 /* El identificador exacto de la colección puede variar; probamos
    varias estrategias y nos quedamos con la primera que devuelva
@@ -327,6 +337,33 @@ async function loadStudio() {
 }
 
 /**
+ * Las últimas grabaciones por fecha de concierto.
+ *
+ * Es la misma consulta del catálogo, sólo que ordenada por `date` en vez de
+ * por descargas, que es la ordenación con la que la app pinta las secciones y
+ * elige la última publicación. Sin esta tanda lo recién subido no aparece:
+ * entra al archivo con cero descargas y se queda fuera de la muestra.
+ *
+ * Si falla, devuelve una lista vacía: el catálogo ya está resuelto y no debe
+ * caerse por no poder añadirle las novedades.
+ */
+async function loadRecent(query) {
+  try {
+    const data = await getJSON(searchURL(query, { rows: CATALOG_RECENT_ROWS, sort: 'date desc' }));
+    return (data?.response?.docs || []).filter((d) => d.identifier).map(normalizeDoc);
+  } catch {
+    return [];
+  }
+}
+
+/** Una sola copia de cada identificador, conservando el primer orden visto. */
+function dedupe(docs) {
+  const seen = new Map();
+  for (const doc of docs) if (!seen.has(doc.id)) seen.set(doc.id, doc);
+  return [...seen.values()];
+}
+
+/**
  * Descarga el catálogo probando las consultas en orden hasta que
  * una devuelva resultados. Cachea el resultado y la consulta ganadora.
  */
@@ -372,7 +409,7 @@ async function loadCatalog({ force = false } = {}) {
       const live = (data?.response?.docs || []).filter((d) => d.identifier).map(normalizeDoc);
       if (live.length) {
         // Los discos liberados van primero: son el material «de catálogo».
-        const docs = [...await loadStudio(), ...live];
+        const docs = dedupe([...await loadStudio(), ...live, ...await loadRecent(query)]);
         state.catalog = docs;
         store.set('query', query);
         store.set('catalog', { v: DATA_VERSION, ts: Date.now(), docs });
